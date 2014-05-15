@@ -1,12 +1,13 @@
 /**
-Robert Casteel
+Robert Casteel and Kevin Beick
 CIS415: Operating Systems
-Spring 2014, University of oregon
-Project 1
+Spring 2014, University of Oregon
+Project 2
 **/
 
 #include <signal.h>
 #include <unistd.h>
+#include "tokenizer.h"
 
 #define STDOUT 1
 #define STDIN 0
@@ -18,23 +19,26 @@ char time_up[] = "...galactus hungers\n";
 char in_time[] = "I shall spare this planet. Herald, find me another.\n";
 char cmd[bufSize]; /*buffer for command*/
 pid_t pid = -1; /*global process id for command process. */
+TOKENIZER *tokenizer;
 
 /* Argument: Time limit*/
 int main(int argc, char* argv[])
 {
+	
 	/* shell's loop.*/
 	while(1){
 		write(STDOUT, (void *) prompt, sizeof(prompt));
   		fsync(STDOUT);	
-		int i = read(STDIN, cmd, bufSize);
-		/*Only need first argument of command... */
-		int j;
-		for (j = 0; j<i; j++){
-			if (cmd[j] == ' ' || cmd[j] == '\n'){
-				cmd[j] = '\0'; //end string
-			}
-		}
+		int i = read(STDIN, cmd, bufSize);	
+		cmd[i-1] = '\0'; /* remove trailing \n*/
 		newargv[0] = cmd;
+		/* tokenize command */
+		tokenizer = init_tokenizer( newargv[0] );
+		char* token;
+		while ( (token = get_next_token( tokenizer )) != NULL ){
+			printf("Got token '%s'\n", token);
+			free( token );
+		}
 		
 		/*create child process*/
 		pid = fork();
@@ -53,6 +57,7 @@ int main(int argc, char* argv[])
 			write(STDOUT, in_time, sizeof(in_time));
 			fsync(STDOUT);
 		}
+		free_tokenizer( tokenizer );
 	} //end shell loop
 	return 0;
 }
