@@ -55,6 +55,9 @@ int main(int argc, char* argv[])
 	// dup2(STDIN_FILENO, original_in);
 	// printf("%d\n", original_out);
 	// printf("%d\n", original_in);
+	
+	int pipefd[2];
+	bool pipeBool = false;
 
 	/* shell's loop.*/
 	while(1){
@@ -76,6 +79,42 @@ int main(int argc, char* argv[])
 		bool continue_to_prompt = false; /* Means of abandoning this input cmd and reissuing prompt (if true) */
 		while ( (token = get_next_token( tokenizer )) != NULL && j<MAX_NUM_ARGS ){
 			// printf("Got token '%s'\n", token);
+			
+//check for pipe
+if(token[0] == '|'){
+	
+	if (pipe(pipefd) == -1) {
+		perror("pipe");
+		exit(EXIT_FAILURE);
+	}
+		
+	pipeBool = true;
+			
+	/*create child process*/
+	pid = fork();
+	
+	if(pid < 0) { /*error occured*/
+		write(STDOUT, "Error occured creating child process\n" , 100);
+		fsync(STDOUT);	
+		return 1;
+	}
+	else if( pid ==0){/*child process writes to pipe*/
+		close(pipefd[0]);  /*close unused read end */
+		dup2(pipefd[1], STDOUT_FILENO);	/*redirect stdout to pipe*/
+		close(pipefd[1]); /*reader will see EOF */
+		execvp(cmd[0], cmd); /*execute first command */
+	}
+	else {
+		int status;
+		waitpid(pid, &status, 0);		
+		for (int k = 0; k < j; k++){
+			cmd[k] = NULL;
+		}
+		j = 0;
+	}
+
+}/*end pipe*/
+else{
 			/* REDIRECTION HANDLER */
 			if(token[0]=='<' || token[0]=='>'){
 				char* next_tok;
@@ -89,6 +128,7 @@ int main(int argc, char* argv[])
 			}
 			cmd[j] = token;
 			j++;
+		}
 		}
 
 		/* Check if we should reissue prompt */
