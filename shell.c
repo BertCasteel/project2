@@ -35,7 +35,8 @@ void redirectionHandler(char* direction, char* file)
 		int new_out = open(file, O_TRUNC | O_WRONLY | O_CREAT, 0644);
 		dup2(new_out, STDOUT_FILENO);
 	}else if( direction[0] == '<' ){
-		printf("got a <\n");
+		int new_in = open(file, O_RDONLY);
+		dup2(new_in, STDIN_FILENO);
 	}
 	return;
 }
@@ -43,14 +44,23 @@ void redirectionHandler(char* direction, char* file)
 
 int main(int argc, char* argv[])
 {
-	/* Save original STDOUT so we can restore it if/when changed */
-	int original_out;
-	dup2(STDOUT_FILENO, original_out);
+	/* Save original STDOUT, STDIN so we can restore it if/when changed */
+	// TODO, don't know if dup() is allowed yet....
+	int original_out = dup(STDOUT_FILENO);
+	int original_in  = dup(STDIN_FILENO);
+	// dup2(STDOUT_FILENO, original_out);
+	// dup2(STDIN_FILENO, original_in);
+
+	// printf("%d\n", original_out);
+	// printf("%d\n", original_in);
 
 	/* shell's loop.*/
 	while(1){
+		/* Restore STDOUT,STDIN to original file descriptor */
 		dup2(original_out, STDOUT_FILENO);
+		dup2(original_in, STDIN_FILENO);
 
+		/* Issue prompt, read in */
 		write(STDOUT, (void *) prompt, sizeof(prompt));
 		fsync(STDOUT);	
 		int i = read(STDIN, input, bufSize);	
@@ -60,35 +70,28 @@ int main(int argc, char* argv[])
 		/* tokenize command */
 		tokenizer = init_tokenizer( newargv[0] );
 		char* token;
-		int j=0;
-		// bool need_more_args = false;
+		int j=0; /* Index of current cmd arg */
+		bool continue_to_prompt = false; /* Means of abandoning this input cmd and reissuing prompt (if true) */
 		while ( (token = get_next_token( tokenizer )) != NULL && j<MAX_NUM_ARGS ){
-			printf("Got token '%s'\n", token);
+			// printf("Got token '%s'\n", token);
+			/* REDIRECTION HANDLER */
 			if(token[0]=='<' || token[0]=='>'){
 				char* next_tok;
-				if((next_tok = get_next_token( tokenizer )) != NULL)
-				{
+				if((next_tok = get_next_token( tokenizer )) != NULL){
 					redirectionHandler(token, next_tok);
-				}else
-				{
-					write(STDOUT, "syntax error near unexpected token `newline'\n" , 100);;
+				}else{
+					write(STDOUT, "syntax error near unexpected token `newline'\n" , 100);
+					continue_to_prompt = true;
 				}
-				j++;
-				// need_more_args=true;
-				continue;
+				continue; // Continue to next args (don't record redirection args in cmd[])
 			}
 			cmd[j] = token;
 			j++;
-			// need_more_args=false;
 		}
 
-		/* We've gone thru all input. Still expecting more? */
-		// if(need_more_args==true){
-		// 	//ERROR
-		// 	write(STDOUT, "syntax error near unexpected token `newline'\n" , 100);
-		// 	fsync(STDOUT);	
-		// }
-		
+		/* Check if we should reissue prompt */
+		if(continue_to_prompt){ continue; }
+
 		/*create child process*/
 		pid = fork();
 	
