@@ -66,9 +66,9 @@ int main(int argc, char* argv[])
 		dup2(original_in, STDIN_FILENO);
 
 		/* Issue prompt, read in */
-		write(STDOUT, (void *) prompt, sizeof(prompt));
-		fsync(STDOUT);	
-		int i = read(STDIN, input, bufSize);	
+		write(STDOUT_FILENO, (void *) prompt, sizeof(prompt));
+		fsync(STDOUT_FILENO);	
+		int i = read(STDIN_FILENO, input, bufSize);	
 		input[i-1] = '\0'; /* remove trailing \n*/
 		newargv[0] = input;
 
@@ -80,55 +80,55 @@ int main(int argc, char* argv[])
 		while ( (token = get_next_token( tokenizer )) != NULL && j<MAX_NUM_ARGS ){
 			// printf("Got token '%s'\n", token);
 			
-//check for pipe
-if(token[0] == '|'){
-	
-	if (pipe(pipefd) == -1) {
-		perror("pipe");
-		exit(EXIT_FAILURE);
-	}
-		
-	pipeBool = true;
+		//check for pipe
+		if(token[0] == '|'){
 			
-	/*create child process*/
-	pid = fork();
-	
-	if(pid < 0) { /*error occured*/
-		write(STDOUT, "Error occured creating child process\n" , 100);
-		fsync(STDOUT);	
-		return 1;
-	}
-	else if( pid ==0){/*child process writes to pipe*/
-		close(pipefd[0]);  /*close unused read end */
-		dup2(pipefd[1], STDOUT_FILENO);	/*redirect stdout to pipe*/
-		close(pipefd[1]); /*reader will see EOF */
-		execvp(cmd[0], cmd); /*execute first command */
-	}
-	else {
-		int status;
-		waitpid(pid, &status, 0);		
-		for (int k = 0; k < j; k++){
-			cmd[k] = NULL;
-		}
-		j = 0;
-	}
-
-}/*end pipe*/
-else{
-			/* REDIRECTION HANDLER */
-			if(token[0]=='<' || token[0]=='>'){
-				char* next_tok;
-				if((next_tok = get_next_token( tokenizer )) != NULL){
-					redirectionHandler(token, next_tok);
-				}else{
-					write(STDOUT, "syntax error near unexpected token `newline'\n" , 100);
-					continue_to_prompt = true;
-				}
-				continue; // Continue to next args (don't record redirection args in cmd[])
+			if (pipe(pipefd) == -1) {
+				perror("pipe");
+				exit(EXIT_FAILURE);
 			}
-			cmd[j] = token;
-			j++;
-		}
+				
+			pipeBool = true;
+					
+			/*create child process*/
+			pid = fork();
+			
+			if(pid < 0) { /*error occured*/
+				write(STDOUT_FILENO, "Error occured creating child process\n" , 100);
+				fsync(STDOUT_FILENO);	
+				return 1;
+			}
+			else if( pid ==0){/*child process writes to pipe*/
+				close(pipefd[0]);  /*close unused read end */
+				dup2(pipefd[1], STDOUT_FILENO);	/*redirect stdout to pipe*/
+				close(pipefd[1]); /*reader will see EOF */
+				execvp(cmd[0], cmd); /*execute first command */
+			}
+			else {
+				int status;
+				waitpid(pid, &status, 0);		
+				for (int k = 0; k < j; k++){
+					cmd[k] = NULL;
+				}
+				j = 0;
+			}
+
+		}/*end pipe*/
+		else{
+				/* REDIRECTION HANDLER */
+				if(token[0]=='<' || token[0]=='>'){
+					char* next_tok;
+					if((next_tok = get_next_token( tokenizer )) != NULL){
+						redirectionHandler(token, next_tok);
+					}else{
+						write(STDOUT_FILENO, "syntax error near unexpected token `newline'\n" , 100);
+						continue_to_prompt = true;
+					}
+					continue; // Continue to next args (don't record redirection args in cmd[])
+				}
+				cmd[j] = token;
+				j++;
+			}
 		}
 
 		/* Check if we should reissue prompt */
@@ -138,11 +138,16 @@ else{
 		pid = fork();
 	
 		if(pid < 0) { /*error occured*/
-			write(STDOUT, "Error occured creating child process\n" , 100);
-			fsync(STDOUT);	
+			write(STDOUT_FILENO, "Error occured creating child process\n" , 100);
+			fsync(STDOUT_FILENO);	
 			return 1;
 		}
 		else if (pid == 0) {/*child proccess*/
+			if( pipeBool ){
+				dup2(pipefd[0], STDIN_FILENO);
+				close(pipefd[0]);
+				close(pipefd[1]);
+			}
 			execvp(cmd[0], cmd);
 		}
 		else { /* parent process */
