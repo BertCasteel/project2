@@ -45,12 +45,14 @@ void redirectionHandler(char* direction, char* file)
 int main(int argc, char* argv[])
 {
 	/* Save original STDOUT, STDIN so we can restore it if/when changed */
-	// TODO, don't know if dup() is allowed yet....
+	// TODO, do this w/o using dup()....
 	int original_out = dup(STDOUT_FILENO);
 	int original_in  = dup(STDIN_FILENO);
+
+	// int original_out;
+	// int original_in;
 	// dup2(STDOUT_FILENO, original_out);
 	// dup2(STDIN_FILENO, original_in);
-
 	// printf("%d\n", original_out);
 	// printf("%d\n", original_in);
 
