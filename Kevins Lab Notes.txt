@@ -1,0 +1,48 @@
+Project 2
+
+tokenizer
+    delimiters: < > | &
+
+Background notes &
+    INVALID: cat > b.txt &
+        the program waits indefinitely (from background) for user input
+
+Do command then handle redirect/pipe
+PIPE:
+    fork
+    piping set up
+    execvp
+    waitpid
+    then run next part execvp
+    unset pipes (?)
+
+Signals to handle:
+    SIGINT  ctrl-C
+    SIGSTOP ctrl-Z
+        -Parent process: ignores, signal(SIGINT, SIG_IGN)
+        -Child process: default, signal(SIGINT, SIG_DFL)
+    SIGTTOU 
+    SIGTTIN 
+        -used when we have a process in background. Look up their Docs.
+        -used to help invalid input (e.g. can't write to a background process)
+        -usage depends on whether foreground,bg, and parent, child.
+    SIGCHLD
+        -parent receives when child is terminated
+        - let's us know when process in background is finished.
+    SIGTSTP
+        - handled by parent
+
+REMEMBER to check return of  setpgid, tcsetgrp to make sure no errors
+
+setpgid(,)  - used to set process to different groups
+    fg - shell, foreground process
+    bg - background processes
+
+terminal controlled processes: 
+    shell itself
+    foreground process
+tcsetgrp(,) - e.g.: move process from bg to fg and allow it to read, write terminal
+
+Fork, setpgid, tcsetpgrp usually happen together.  calling one means you should have the others.
+
+crtl-Z (pausing) Amir thinks (off top of head) that you can leave paused process in whichever group it's in
