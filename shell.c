@@ -62,6 +62,9 @@ int main(int argc, char* argv[])
 		dup2(original_out, STDOUT_FILENO);
 		dup2(original_in, STDIN_FILENO);
 
+		/* Clear cmd[] */
+		for (int i = 0; i < MAX_NUM_ARGS; ++i) { cmd[i] =NULL; }
+
 		/* Issue prompt, read in */
 		write(STDOUT, (void *) prompt, sizeof(prompt));
 		fsync(STDOUT);	
@@ -112,6 +115,7 @@ int main(int argc, char* argv[])
 			// fsync(STDOUT);
 		}
 		free_tokenizer( tokenizer );
+
 	} //end shell loop
 	return 0;
 }
