@@ -68,7 +68,7 @@ int main(int argc, char* argv[])
 		dup2(original_in, STDIN_FILENO);
 
 		/* Clear cmd[] */
-			for(int clear = 0; clear < MAX_NUM_ARGS; clear++) { cmd[clear] = NULL; }
+		for(int clear = 0; clear < MAX_NUM_ARGS; clear++) { cmd[clear] = NULL; }
 
 		/* Issue prompt, read in */
 		write(STDOUT_FILENO, (void *) prompt, sizeof(prompt));
@@ -84,8 +84,9 @@ int main(int argc, char* argv[])
 		bool continue_to_prompt = false; /* Means of abandoning this input cmd and reissuing prompt (if true) */
 		while ( (token = get_next_token( tokenizer )) != NULL && j<MAX_NUM_ARGS ){
 			//printf("Got token %s", token);
-			//printf(" at %d\n", j); 			
-			//check for pipe
+			//printf(" at %d\n", j); 	
+
+			/* PIPE HANDLER */
 			if(token[0] == '|'){
 				
 				if (pipe(pipefd) == -1) {
@@ -120,19 +121,22 @@ int main(int argc, char* argv[])
 				}
 
 			}/*end pipe*/
-			else{
-				/* REDIRECTION HANDLER */
-				if(token[0]=='<' || token[0]=='>'){
-					char* next_tok;
-					if((next_tok = get_next_token( tokenizer )) != NULL){
-						redirectionHandler(token, next_tok);
-					}
-					else{
-						write(STDOUT_FILENO, "syntax error near unexpected token `newline'\n" , 100);
-						continue_to_prompt = true;
-					}
-					continue; // Continue to next args (don't record redirection args in cmd[])
+
+			/* REDIRECTION HANDLER */
+			else if(token[0]=='<' || token[0]=='>'){
+				char* next_tok;
+				if((next_tok = get_next_token( tokenizer )) != NULL){
+					redirectionHandler(token, next_tok);
 				}
+				else{
+					write(STDOUT_FILENO, "syntax error near unexpected token `newline'\n" , 100);
+					continue_to_prompt = true;
+				}
+				continue; // Continue to next arg (don't record redirection args in cmd[])
+			}
+
+			/* DEFAULT HANDLER */
+			else{
 				cmd[j] = token;
 				j++;
 			}
@@ -153,7 +157,7 @@ int main(int argc, char* argv[])
 			if( pipeBool== true ){
 				dup2(pipefd[0], STDIN_FILENO);
 			}
-			write(2, cmd[0], sizeof(cmd[0]));
+			// write(2, cmd[0], sizeof(cmd[0]));
 			execvp(cmd[0], cmd);
 		}
 		else { /* parent process */
