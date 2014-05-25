@@ -66,10 +66,11 @@ int main(int argc, char* argv[])
 		/* Restore STDOUT,STDIN to original file descriptor */
 		dup2(original_out, STDOUT_FILENO);
 		dup2(original_in, STDIN_FILENO);
-
-		/* Clear cmd[] */
-		for (int i=0; i < MAX_NUM_ARGS; i++) { cmd[i] = NULL; }
-
+		/*clear cmd array. limit scope of index clear}*/
+		{
+			int clear = 0;
+			for(clear = 0; clear < MAX_NUM_ARGS; clear++) { cmd[clear] = NULL; }
+		}
 		/* Issue prompt, read in */
 		write(STDOUT_FILENO, (void *) prompt, sizeof(prompt));
 		fsync(STDOUT_FILENO);	
@@ -94,7 +95,6 @@ int main(int argc, char* argv[])
 				}
 					
 				pipeBool = true;
-				printf("Piping\n");		
 				/*create child process*/
 				pid = fork();
 				
@@ -104,24 +104,21 @@ int main(int argc, char* argv[])
 					return 1;
 				}
 				else if( pid == 0){/*child process writes to pipe*/
-					dup2(pipefd[1], 1);	/*redirect stdout to pipe*/
+					dup2(pipefd[1], STDOUT_FILENO);	/*redirect stdout to pipe*/
 					close(pipefd[0]);  /*close unused read end */
-					close(pipefd[1]); /*reader will see EOF */
+					cmd[j] = NULL;     
 					execvp(cmd[0], cmd); /*execute first command */
 				}
-				
-				int status;
-				// waitpid(pid, &status, 0);
-				close(pipefd[0]);  /*close unused read end */
-				close(pipefd[1]); 
-				wait(NULL);		
-//					close(pipefd[0]);  /*close unused read end */
-//					close(pipefd[1]); /*reader will see EOF */
-				// for (int k = 0; k < j; k++){
-				// 	cmd[k] = NULL;
-				// }
-				j = 0;
-				
+				else {
+					wait(NULL);
+					close(pipefd[1]); /*reader will see EOF */
+					/*clear cmd array. limit scope of index k}*/
+					{ 
+						int k;
+						for (k = 0; k < j; k++){ cmd[k] = NULL; }
+					}
+					j = 0;
+				}
 
 			}/*end pipe*/
 			else{
@@ -155,24 +152,20 @@ int main(int argc, char* argv[])
 		}
 		else if (pid == 0) {/*child proccess*/			 
 			if( pipeBool== true ){
-			        //printf("dyyuplicate stdin to pipe\n");
-				dup2(pipefd[0], 0);
-				close(pipefd[1]);
-		 		close(pipefd[0]);
-				//char buf;
-				//while (read(STDIN_FILENO, &buf, 1) > 0)
-		//			write(2, &buf, 1);
-				//close(pipefd[0]);
+				dup2(pipefd[0], STDIN_FILENO);
 			}
-			//printf("next command: %s", cmd[0]);
 			write(2, cmd[0], sizeof(cmd[0]));
 			execvp(cmd[0], cmd);
 		}
 		else { /* parent process */
 			int status;
 			waitpid(pid, &status, 0);
-			// write(STDOUT, in_time, sizeof(in_time));
-			// fsync(STDOUT);
+		}
+		/* clear out pipe */
+		if (pipeBool == true){
+			close(pipefd[0]);
+			close(pipefd[1]);
+			pipeBool = false;
 		}
 		free_tokenizer( tokenizer );
 	} //end shell loop
