@@ -66,7 +66,7 @@ int main(int argc, char* argv[])
 		/* Restore STDOUT,STDIN to original file descriptor */
 		dup2(original_out, STDOUT_FILENO);
 		dup2(original_in, STDIN_FILENO);
-
+		/*clear cmd array. limit scope of index clear}*/
 		{
 			int clear = 0;
 			for(clear = 0; clear < MAX_NUM_ARGS; clear++) { cmd[clear] = NULL; }
@@ -95,7 +95,6 @@ int main(int argc, char* argv[])
 				}
 					
 				pipeBool = true;
-				printf("Piping\n");		
 				/*create child process*/
 				pid = fork();
 				
@@ -107,18 +106,16 @@ int main(int argc, char* argv[])
 				else if( pid == 0){/*child process writes to pipe*/
 					dup2(pipefd[1], STDOUT_FILENO);	/*redirect stdout to pipe*/
 					close(pipefd[0]);  /*close unused read end */
-//					close(pipefd[1]); /*reader will see EOF */
-					cmd[j] = NULL;
+					cmd[j] = NULL;     
 					execvp(cmd[0], cmd); /*execute first command */
 				}
 				else {
-					int status;
-				//	close(pipefd[0]);  /*close unused read end */
 					wait(NULL);
 					close(pipefd[1]); /*reader will see EOF */
-					int k;
-					for (k = 0; k < j; k++){
-						cmd[k] = NULL;
+					/*clear cmd array. limit scope of index k}*/
+					{ 
+						int k;
+						for (k = 0; k < j; k++){ cmd[k] = NULL; }
 					}
 					j = 0;
 				}
@@ -156,11 +153,6 @@ int main(int argc, char* argv[])
 		else if (pid == 0) {/*child proccess*/			 
 			if( pipeBool== true ){
 				dup2(pipefd[0], STDIN_FILENO);
-			//	if(close(pipefd[1]) != 0) {printf("error");}
-		       	//	if(close(pipefd[0]) != 0) {printf("error..");}
-			//	char buf;
-			//	while (read(STDIN_FILENO, &buf, 1) > 0)
-			//		write(2, &buf, 1);
 			}
 			write(2, cmd[0], sizeof(cmd[0]));
 			execvp(cmd[0], cmd);
@@ -168,8 +160,12 @@ int main(int argc, char* argv[])
 		else { /* parent process */
 			int status;
 			waitpid(pid, &status, 0);
-			// write(STDOUT, in_time, sizeof(in_time));
-			// fsync(STDOUT);
+		}
+		/* clear out pipe */
+		if (pipeBool == true){
+			close(pipefd[0]);
+			close(pipefd[1]);
+			pipeBool = false;
 		}
 		free_tokenizer( tokenizer );
 	} //end shell loop
