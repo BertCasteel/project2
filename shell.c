@@ -67,6 +67,9 @@ int main(int argc, char* argv[])
 		dup2(original_out, STDOUT_FILENO);
 		dup2(original_in, STDIN_FILENO);
 
+		/* Clear cmd[] */
+		for (int i=0; i < MAX_NUM_ARGS; i++) { cmd[i] = NULL; }
+
 		/* Issue prompt, read in */
 		write(STDOUT_FILENO, (void *) prompt, sizeof(prompt));
 		fsync(STDOUT_FILENO);	
@@ -103,20 +106,22 @@ int main(int argc, char* argv[])
 				else if( pid == 0){/*child process writes to pipe*/
 					dup2(pipefd[1], 1);	/*redirect stdout to pipe*/
 					close(pipefd[0]);  /*close unused read end */
-					//close(pipefd[1]); /*reader will see EOF */
+					close(pipefd[1]); /*reader will see EOF */
 					execvp(cmd[0], cmd); /*execute first command */
 				}
-				else {
-					int status;
-					waitpid(pid, &status, 0);		
+				
+				int status;
+				// waitpid(pid, &status, 0);
+				close(pipefd[0]);  /*close unused read end */
+				close(pipefd[1]); 
+				wait(NULL);		
 //					close(pipefd[0]);  /*close unused read end */
 //					close(pipefd[1]); /*reader will see EOF */
-					int k;
-					for (k = 0; k < j; k++){
-						cmd[k] = NULL;
-					}
-					j = 0;
-				}
+				// for (int k = 0; k < j; k++){
+				// 	cmd[k] = NULL;
+				// }
+				j = 0;
+				
 
 			}/*end pipe*/
 			else{
@@ -151,7 +156,7 @@ int main(int argc, char* argv[])
 		else if (pid == 0) {/*child proccess*/			 
 			if( pipeBool== true ){
 			        //printf("dyyuplicate stdin to pipe\n");
-				dup2(pipefd[0], STDIN_FILENO);
+				dup2(pipefd[0], 0);
 				close(pipefd[1]);
 		 		close(pipefd[0]);
 				//char buf;
