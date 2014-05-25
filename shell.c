@@ -9,6 +9,8 @@ Project 2
 #include <unistd.h>
 #include <fcntl.h>
 #include "tokenizer.h"
+#include <sys/wait.h>
+#include <sys/types.h>
 
 #define STDOUT 1
 #define STDIN 0
@@ -56,11 +58,11 @@ int main(int argc, char* argv[])
 	// printf("%d\n", original_out);
 	// printf("%d\n", original_in);
 	
-	int pipefd[2];
-	bool pipeBool = false;
 
 	/* shell's loop.*/
 	while(1){
+		int pipefd[2];
+		bool pipeBool = false;
 		/* Restore STDOUT,STDIN to original file descriptor */
 		dup2(original_out, STDOUT_FILENO);
 		dup2(original_in, STDIN_FILENO);
@@ -78,8 +80,8 @@ int main(int argc, char* argv[])
 		int j=0; /* Index of current cmd arg */
 		bool continue_to_prompt = false; /* Means of abandoning this input cmd and reissuing prompt (if true) */
 		while ( (token = get_next_token( tokenizer )) != NULL && j<MAX_NUM_ARGS ){
-			// printf("Got token '%s'\n", token);
-				
+			//printf("Got token %s", token);
+			//printf(" at %d\n", j); 			
 			//check for pipe
 			if(token[0] == '|'){
 				
@@ -89,7 +91,7 @@ int main(int argc, char* argv[])
 				}
 					
 				pipeBool = true;
-						
+				printf("Piping\n");		
 				/*create child process*/
 				pid = fork();
 				
@@ -99,14 +101,16 @@ int main(int argc, char* argv[])
 					return 1;
 				}
 				else if( pid == 0){/*child process writes to pipe*/
-					dup2(pipefd[1], STDOUT_FILENO);	/*redirect stdout to pipe*/
+					dup2(pipefd[1], 1);	/*redirect stdout to pipe*/
 					close(pipefd[0]);  /*close unused read end */
-					close(pipefd[1]); /*reader will see EOF */
+					//close(pipefd[1]); /*reader will see EOF */
 					execvp(cmd[0], cmd); /*execute first command */
 				}
 				else {
 					int status;
 					waitpid(pid, &status, 0);		
+//					close(pipefd[0]);  /*close unused read end */
+//					close(pipefd[1]); /*reader will see EOF */
 					int k;
 					for (k = 0; k < j; k++){
 						cmd[k] = NULL;
@@ -144,12 +148,19 @@ int main(int argc, char* argv[])
 			fsync(STDOUT_FILENO);	
 			return 1;
 		}
-		else if (pid == 0) {/*child proccess*/
-			if( pipeBool ){
+		else if (pid == 0) {/*child proccess*/			 
+			if( pipeBool== true ){
+			        //printf("dyyuplicate stdin to pipe\n");
 				dup2(pipefd[0], STDIN_FILENO);
-				close(pipefd[0]);
 				close(pipefd[1]);
+		 		close(pipefd[0]);
+				//char buf;
+				//while (read(STDIN_FILENO, &buf, 1) > 0)
+		//			write(2, &buf, 1);
+				//close(pipefd[0]);
 			}
+			//printf("next command: %s", cmd[0]);
+			write(2, cmd[0], sizeof(cmd[0]));
 			execvp(cmd[0], cmd);
 		}
 		else { /* parent process */
