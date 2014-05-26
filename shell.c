@@ -78,20 +78,17 @@ int main(int argc, char* argv[])
 		input[length-1] = '\0'; /* remove trailing \n*/
 		//newargv[0] = input;
 		bool continue_to_prompt = false; /* Means of abandoning this input cmd and reissuing prompt (if true) */
-		/* Background Handler */
-		fsync(STDOUT_FILENO);	
-		
+		/* Background Handler */		
 		int i;
 		for (i = 0; i < length; i++){
 			if (input[i] == '&'){
 				if(i == length - 2){
-					write(1, "background registered\n", 100);
-					fsync(1);
+					write( 1, "background registered\n", 22);
 					background = true;
 					input[length - 2] = '\0';
 				}
 				else{
-					printf("& is not the last character");
+					write( 1, "& is not the last character\n", 28);
 					continue_to_prompt = true;
 				}
 			}
@@ -119,14 +116,14 @@ int main(int argc, char* argv[])
 				/*create child process*/
 				pid = fork();
 				if(pid < 0) { /*error occured*/
-					write(STDOUT_FILENO, "Error occured creating child process\n" , 100);
+					write(STDOUT_FILENO, "Error occured creating child process\n" , 37);
 					fsync(STDOUT_FILENO);	
 					return 1;
 				}
 				else if( pid == 0){/*child process writes to pipe*/
 					if(background){
-						pipeGrp = getpid();
-						setpgid(0, pipeGrp);
+						printf("%d\n", getpid());
+						setpgid(0, getpid());
 					}
 					dup2(pipefd[1], STDOUT_FILENO);	/*redirect stdout to pipe*/
 					close(pipefd[0]);  /*close unused read end */
@@ -134,6 +131,10 @@ int main(int argc, char* argv[])
 					execvp(cmd[0], cmd); /*execute first command */
 				}
 				else {
+					if(background) {
+						pipeGrp = pid;
+						printf("%d\n", pipeGrp);
+					}
 					wait(NULL);
 					close(pipefd[1]); /*reader will see EOF */
 					/*clear cmd array. limit scope of index k */
@@ -173,7 +174,7 @@ int main(int argc, char* argv[])
 		pid = fork();
 	
 		if(pid < 0) { /*error occured*/
-			write(STDOUT_FILENO, "Error occured creating child process\n" , 100);
+			write(STDOUT_FILENO, "Error occured creating child process\n" , 37);
 			fsync(STDOUT_FILENO);	
 			return 1;
 		}
@@ -181,7 +182,11 @@ int main(int argc, char* argv[])
 			/* change group process id in child process to ensure execvp runs after the change */
 			if (background){
 				if (pipeBool){
-					setpgid(0, pipeGrp);
+					printf("%d\n", pipeGrp);
+					if ( setpgid(0, pipeGrp) != 0){
+						perror("setpgid");
+						exit(EXIT_FAILURE);
+					}
 				}
 				else {
 					setpgid(0, getpid());
@@ -204,6 +209,7 @@ int main(int argc, char* argv[])
 			pipeBool = false;
 		}
 		background = false;
+		pipeGrp = -1;
 		free_tokenizer( tokenizer );
 
 	} //end shell loop
