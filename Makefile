@@ -1,6 +1,6 @@
 CFLAGS=-g -Wall
 CC=gcc
-SRCS=tokenizer.h tokenizer.c shell.c
+SRCS=tokenizer.h tokenizer.c shell.c linked_list.h
 OBJS=tokenizer.o shell.o
 LDFLAGS=
 LIBS=

@@ -8,9 +8,10 @@ Project 2
 #include <signal.h>
 #include <unistd.h>
 #include <fcntl.h>
-#include "tokenizer.h"
 #include <sys/wait.h>
 #include <sys/types.h>
+#include "tokenizer.h"
+#include "linked_list.h"
 
 #define STDOUT 1
 #define STDIN 0
@@ -57,6 +58,9 @@ int main(int argc, char* argv[])
 	// dup2(STDIN_FILENO, original_in);
 	// printf("%d\n", original_out);
 	// printf("%d\n", original_in);
+
+	struct Node* bgProcessesLL = (struct Node*)malloc(sizeof(struct Node));
+	bgProcessesLL = NULL;
 	
 
 	/* shell's loop.*/
@@ -142,7 +146,7 @@ int main(int argc, char* argv[])
 					}
 					// wait(NULL);
 					close(pipefd[1]); /*reader will see EOF */
-					
+
 					/*clear cmd array. limit scope of index k */
 					{ 
 						int k;
@@ -206,8 +210,14 @@ int main(int argc, char* argv[])
 			execvp(cmd[0], cmd);
 		}
 		else { /* parent process */
-			int status;
-			waitpid(pid, &status, 0);
+			if(background){
+				/* add it to linked list */
+				add_to_end(bgProcessesLL, pid);
+			}
+			else{
+				int status;
+				waitpid(pid, &status, 0);
+			}
 		}
 
 		/* Revert to original settings */
