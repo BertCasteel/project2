@@ -41,7 +41,8 @@ setpgid(,)  - used to set process to different groups
 terminal controlled processes: 
     shell itself
     foreground process
-tcsetgrp(,) - e.g.: move process from bg to fg and allow it to read, write terminal
+tcsetpgrp(,) - e.g.: move process from bg to fg and allow it to read, write terminal
+tcgetpgrp() - returns foreground process group ID
 
 Fork, setpgid, tcsetpgrp usually happen together.  calling one means you should have the others.
 
