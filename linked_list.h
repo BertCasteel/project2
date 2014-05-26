@@ -15,7 +15,7 @@ struct Node
 } Node;
 
 
-struct Node* add_to_end(struct Node* head, int data){
+struct Node* add_to_end(struct Node* head, pid_t data){
 
     // Node* newNode = new Node(data);
     struct Node* newNode = (struct Node *)malloc(sizeof(struct Node));
@@ -40,7 +40,18 @@ struct Node* add_to_end(struct Node* head, int data){
     return head;
 }
 
-int delete_from_list(struct Node** head, int data){
+int search_for_pid(struct Node* head, pid_t pid){
+    if(head == NULL){
+        return -1;
+    }
+    if (head->data == pid){
+        return 0;
+    }
+    return search_for_pid(head->next, pid);
+
+}
+
+int delete_from_list(struct Node** head, pid_t data){
     /*
     Iterates through list and removes first occurance of _data_
     */
@@ -78,20 +89,21 @@ void print_list(struct Node* head){
     write(STDOUT, "---------------------\n", 22);
 }
 
-// int main(){
-//     struct Node* head = (struct Node*)malloc(sizeof(struct Node));
-//     head = NULL;
-//     for (int i = 0; i < 10; ++i)
-//     {
-//         // printf("trying to add %d\n", i);
-//         head = add_to_end(head, i);
-//     }
-//     print_list(head);
+/* int main(){
+     struct Node* head = (struct Node*)malloc(sizeof(struct Node));
+     head = NULL;
+     int i;
+     for (i = 0; i < 10; ++i)
+     {
+         // printf("trying to add %d\n", i);
+         head = add_to_end(head, i);
+     }
+     print_list(head);
 
 //     delete_from_list(&head, 4);
 
 //     delete_from_list(&head, 7);
-
+     printf("%d\n", search_for_pid(head, 8));
 //     print_list(head);
 
 //     delete_from_list(&head, 7);
@@ -105,4 +117,5 @@ void print_list(struct Node* head){
 //         print_list(head);
 //     }
 
-// }
+     return 0;
+}*/

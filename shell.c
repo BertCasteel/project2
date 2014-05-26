@@ -31,6 +31,9 @@ TOKENIZER *tokenizer;
 /* Temp solution - TODO arbitrary length? */
 char* cmd[MAX_NUM_ARGS];
 
+/* Global linked list of background processes */
+struct Node* bgProcessesLL;
+
 
 void redirectionHandler(char* direction, char* file)
 {
@@ -44,9 +47,29 @@ void redirectionHandler(char* direction, char* file)
 	return;
 }
 
+void signal_handler(int sig_num){
+	pid_t pid;
+	while( (pid = waitpid(-1, 0, WNOHANG)) > 0 ){
+		sleep(15);
+		if(search_for_pid(bgProcessesLL, pid) == 0){
+			if(delete_from_list(&bgProcessesLL, pid) == 0){
+				write(1, "successfully removed from BGLL\n", 31);
+			}
+			else {
+				write(1, "pid not found in BGLL\n", 22);
+			}
+		}
+		else write(1, "not found in bg\n", 16);
+	}
+}
+
 
 int main(int argc, char* argv[])
 {
+	bgProcessesLL = (struct Node*)malloc(sizeof(struct Node));
+	bgProcessesLL = NULL;
+
+	signal(SIGCHLD, signal_handler);
 	/* Save original STDOUT, STDIN so we can restore it if/when changed */
 	// TODO, do this w/o using dup()....
 	int original_out = dup(STDOUT_FILENO);
@@ -59,8 +82,7 @@ int main(int argc, char* argv[])
 	// printf("%d\n", original_out);
 	// printf("%d\n", original_in);
 
-	struct Node* bgProcessesLL = (struct Node*)malloc(sizeof(struct Node));
-	bgProcessesLL = NULL;
+
 	
 
 	/* shell's loop.*/
@@ -217,6 +239,7 @@ int main(int argc, char* argv[])
 			else{
 				int status;
 				waitpid(pid, &status, 0);
+				printf("Terminated fg %d\n", pid );
 			}
 		}
 
