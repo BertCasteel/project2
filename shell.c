@@ -50,16 +50,22 @@ void redirectionHandler(char* direction, char* file)
 void signal_handler(int sig_num){
 	pid_t pid;
 	while( (pid = waitpid(-1, 0, WNOHANG)) > 0 ){
-		sleep(15);
+		//sleep(15);
+		print_list(bgProcessesLL);
 		if(search_for_pid(bgProcessesLL, pid) == 0){
 			if(delete_from_list(&bgProcessesLL, pid) == 0){
 				write(1, "successfully removed from BGLL\n", 31);
+				print_list(bgProcessesLL);
 			}
 			else {
 				write(1, "pid not found in BGLL\n", 22);
+				print_list(bgProcessesLL);
 			}
 		}
-		else write(1, "not found in bg\n", 16);
+		else {
+			write(1, "not found in bg\n", 16);
+			print_list(bgProcessesLL);
+		}
 	}
 }
 
@@ -234,7 +240,8 @@ int main(int argc, char* argv[])
 		else { /* parent process */
 			if(background){
 				/* add it to linked list */
-				add_to_end(bgProcessesLL, pid);
+				bgProcessesLL = add_to_end(bgProcessesLL, pid);
+				print_list(bgProcessesLL);
 			}
 			else{
 				int status;
