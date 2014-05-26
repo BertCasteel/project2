@@ -140,8 +140,9 @@ int main(int argc, char* argv[])
 						pipeGrp = pid;
 						printf("%d\n", pipeGrp);
 					}
-					wait(NULL);
+					// wait(NULL);
 					close(pipefd[1]); /*reader will see EOF */
+					
 					/*clear cmd array. limit scope of index k */
 					{ 
 						int k;
@@ -208,6 +209,8 @@ int main(int argc, char* argv[])
 			int status;
 			waitpid(pid, &status, 0);
 		}
+
+		/* Revert to original settings */
 		/* clear out pipe */
 		if (pipeBool == true){
 			close(pipefd[0]);
