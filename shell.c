@@ -19,7 +19,7 @@ Project 2
 
 typedef enum { false, true } bool;
 
-char *newargv[] = {NULL, NULL}; /*hold arguments for child process creation*/
+//char *newargv[] = {NULL, NULL}; /*hold arguments for child process creation*/
 char prompt[] = "GALACTUS# ";
 char input[bufSize]; /*buffer for command*/
 pid_t pid = -1; /*global process id for command process. */
@@ -61,7 +61,7 @@ int main(int argc, char* argv[])
 	while(1){
 		int pipefd[2];
 		bool pipeBool = false;
-	//	pid_t pipeGrp = -1;
+		pid_t pipeGrp = -1;
 		bool background = false;
 		/* Restore STDOUT,STDIN to original file descriptor */
 		dup2(original_out, STDOUT_FILENO);
@@ -74,15 +74,35 @@ int main(int argc, char* argv[])
 		/* Issue prompt, read in */
 		write(STDOUT_FILENO, (void *) prompt, sizeof(prompt));
 		fsync(STDOUT_FILENO);	
-		int i = read(STDIN_FILENO, input, bufSize);	
-		input[i-1] = '\0'; /* remove trailing \n*/
-		newargv[0] = input;
+		int length = read(STDIN_FILENO, input, bufSize);	
+		input[length-1] = '\0'; /* remove trailing \n*/
+		//newargv[0] = input;
+		bool continue_to_prompt = false; /* Means of abandoning this input cmd and reissuing prompt (if true) */
+		/* Background Handler */
+		fsync(STDOUT_FILENO);	
+		
+		int i;
+		for (i = 0; i < length; i++){
+			if (input[i] == '&'){
+				if(i == length - 2){
+					write(1, "background registered\n", 100);
+					fsync(1);
+					background = true;
+					input[length - 2] = '\0';
+				}
+				else{
+					printf("& is not the last character");
+					continue_to_prompt = true;
+				}
+			}
+		}
+		
 
 		/* tokenize command */
-		tokenizer = init_tokenizer( newargv[0] );
+		tokenizer = init_tokenizer( input );
 		char* token;
 		int j=0; /* Index of current cmd arg */
-		bool continue_to_prompt = false; /* Means of abandoning this input cmd and reissuing prompt (if true) */
+		
 		while ( (token = get_next_token( tokenizer )) != NULL && j<MAX_NUM_ARGS ){
 			//printf("Got token %s", token);
 			//printf(" size:%d\n", strlen(token)); 	
@@ -104,6 +124,10 @@ int main(int argc, char* argv[])
 					return 1;
 				}
 				else if( pid == 0){/*child process writes to pipe*/
+					if(background){
+						pipeGrp = getpid();
+						setpgid(0, pipeGrp);
+					}
 					dup2(pipefd[1], STDOUT_FILENO);	/*redirect stdout to pipe*/
 					close(pipefd[0]);  /*close unused read end */
 					cmd[j] = NULL;     
@@ -142,12 +166,6 @@ int main(int argc, char* argv[])
 			}
 		}//end tokenizer
 		
-		/* BACKGROUND HANDLER */
-		if( strcmp(cmd[j-1], "&") == 0){
-			printf("background\n");
-			background = true;
-			cmd[j-1] = NULL;
-		}
 		/* Check if we should reissue prompt */
 		if(continue_to_prompt){ continue; }
 
@@ -161,13 +179,14 @@ int main(int argc, char* argv[])
 		}
 		else if (pid == 0) {/*child proccess*/	
 			/* change group process id in child process to ensure execvp runs after the change */
-			pid_t groupID = 0;
 			if (background){
-				groupID = getpid();
-				setpgid(0, getpid());
-			}
-			/*else if (foreground) 
-			setpgrp() */		 
+				if (pipeBool){
+					setpgid(0, pipeGrp);
+				}
+				else {
+					setpgid(0, getpid());
+				}
+			}		 
 			if( pipeBool){
 				dup2(pipefd[0], STDIN_FILENO);
 			}
@@ -184,6 +203,7 @@ int main(int argc, char* argv[])
 			close(pipefd[1]);
 			pipeBool = false;
 		}
+		background = false;
 		free_tokenizer( tokenizer );
 
 	} //end shell loop
