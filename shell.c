@@ -21,8 +21,6 @@ typedef enum { false, true } bool;
 
 char *newargv[] = {NULL, NULL}; /*hold arguments for child process creation*/
 char prompt[] = "GALACTUS# ";
-char time_up[] = "...galactus hungers\n";
-char in_time[] = "I shall spare this planet. Herald, find me another.\n";
 char input[bufSize]; /*buffer for command*/
 pid_t pid = -1; /*global process id for command process. */
 TOKENIZER *tokenizer;
@@ -63,6 +61,8 @@ int main(int argc, char* argv[])
 	while(1){
 		int pipefd[2];
 		bool pipeBool = false;
+	//	pid_t pipeGrp = -1;
+		bool background = false;
 		/* Restore STDOUT,STDIN to original file descriptor */
 		dup2(original_out, STDOUT_FILENO);
 		dup2(original_in, STDIN_FILENO);
@@ -85,7 +85,7 @@ int main(int argc, char* argv[])
 		bool continue_to_prompt = false; /* Means of abandoning this input cmd and reissuing prompt (if true) */
 		while ( (token = get_next_token( tokenizer )) != NULL && j<MAX_NUM_ARGS ){
 			//printf("Got token %s", token);
-			//printf(" at %d\n", j); 	
+			//printf(" size:%d\n", strlen(token)); 	
 
 			/* PIPE HANDLER */
 			if(token[0] == '|'){
@@ -98,7 +98,6 @@ int main(int argc, char* argv[])
 				pipeBool = true;
 				/*create child process*/
 				pid = fork();
-				
 				if(pid < 0) { /*error occured*/
 					write(STDOUT_FILENO, "Error occured creating child process\n" , 100);
 					fsync(STDOUT_FILENO);	
@@ -141,8 +140,14 @@ int main(int argc, char* argv[])
 				cmd[j] = token;
 				j++;
 			}
+		}//end tokenizer
+		
+		/* BACKGROUND HANDLER */
+		if( strcmp(cmd[j-1], "&") == 0){
+			printf("background\n");
+			background = true;
+			cmd[j-1] = NULL;
 		}
-
 		/* Check if we should reissue prompt */
 		if(continue_to_prompt){ continue; }
 
@@ -156,11 +161,14 @@ int main(int argc, char* argv[])
 		}
 		else if (pid == 0) {/*child proccess*/	
 			/* change group process id in child process to ensure execvp runs after the change */
-			//if (background)
-			setpgid(0, getpid());
+			pid_t groupID = 0;
+			if (background){
+				groupID = getpid();
+				setpgid(0, getpid());
+			}
 			/*else if (foreground) 
 			setpgrp() */		 
-			if( pipeBool== true ){
+			if( pipeBool){
 				dup2(pipefd[0], STDIN_FILENO);
 			}
 			// write(2, cmd[0], sizeof(cmd[0]));
