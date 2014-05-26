@@ -19,8 +19,10 @@ Project 2
 
 typedef enum { false, true } bool;
 
-//char *newargv[] = {NULL, NULL}; /*hold arguments for child process creation*/
+
 char prompt[] = "GALACTUS# ";
+char errCreatingChild[] = "Error occured creating child process\n";
+
 char input[bufSize]; /*buffer for command*/
 pid_t pid = -1; /*global process id for command process. */
 TOKENIZER *tokenizer;
@@ -85,13 +87,15 @@ int main(int argc, char* argv[])
 		for (i = 0; i < length; i++){
 			if (input[i] == '&'){
 				if(i == length - 2){
-					write(1, "background registered\n", 100);
+					write(1, "background registered\n", sizeof("background registered\n"));
 					fsync(1);
+					// printf("background\n");
 					background = true;
 					input[length - 2] = '\0';
 				}
 				else{
-					printf("& is not the last character");
+					char bgSyntaxErr[] = "syntax error: & can only be last character\n";
+					write(1, bgSyntaxErr, sizeof(bgSyntaxErr));
 					continue_to_prompt = true;
 				}
 			}
@@ -119,7 +123,7 @@ int main(int argc, char* argv[])
 				/*create child process*/
 				pid = fork();
 				if(pid < 0) { /*error occured*/
-					write(STDOUT_FILENO, "Error occured creating child process\n" , 100);
+					write(STDOUT_FILENO, errCreatingChild , sizeof(errCreatingChild));
 					fsync(STDOUT_FILENO);	
 					return 1;
 				}
@@ -153,7 +157,8 @@ int main(int argc, char* argv[])
 					redirectionHandler(token, next_tok);
 				}
 				else{
-					write(STDOUT_FILENO, "syntax error near unexpected token `newline'\n" , 100);
+					char redirSyntaxErr[] = "syntax error near unexpected token `newline'\n";
+					write(STDOUT_FILENO, redirSyntaxErr, sizeof(redirSyntaxErr));
 					continue_to_prompt = true;
 				}
 				continue; // Continue to next arg (don't record redirection args in cmd[])
@@ -173,7 +178,7 @@ int main(int argc, char* argv[])
 		pid = fork();
 	
 		if(pid < 0) { /*error occured*/
-			write(STDOUT_FILENO, "Error occured creating child process\n" , 100);
+			write(STDOUT_FILENO, errCreatingChild , sizeof(errCreatingChild));
 			fsync(STDOUT_FILENO);	
 			return 1;
 		}
