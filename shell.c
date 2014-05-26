@@ -68,7 +68,8 @@ int main(int argc, char* argv[])
 		dup2(original_in, STDIN_FILENO);
 
 		/* Clear cmd[] */
-		for(int clear = 0; clear < MAX_NUM_ARGS; clear++) { cmd[clear] = NULL; }
+		int clear;
+		for(clear = 0; clear < MAX_NUM_ARGS; clear++) { cmd[clear] = NULL; }
 
 		/* Issue prompt, read in */
 		write(STDOUT_FILENO, (void *) prompt, sizeof(prompt));
@@ -112,7 +113,7 @@ int main(int argc, char* argv[])
 				else {
 					wait(NULL);
 					close(pipefd[1]); /*reader will see EOF */
-					/*clear cmd array. limit scope of index k}*/
+					/*clear cmd array. limit scope of index k */
 					{ 
 						int k;
 						for (k = 0; k < j; k++){ cmd[k] = NULL; }
@@ -153,7 +154,12 @@ int main(int argc, char* argv[])
 			fsync(STDOUT_FILENO);	
 			return 1;
 		}
-		else if (pid == 0) {/*child proccess*/			 
+		else if (pid == 0) {/*child proccess*/	
+			/* change group process id in child process to ensure execvp runs after the change */
+			//if (background)
+			setpgid(0, getpid());
+			/*else if (foreground) 
+			setpgrp() */		 
 			if( pipeBool== true ){
 				dup2(pipefd[0], STDIN_FILENO);
 			}
