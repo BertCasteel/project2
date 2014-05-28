@@ -34,6 +34,9 @@ char* cmd[MAX_NUM_ARGS];
 
 int shell_terminal;
 
+/* Global linked list of background processes */
+struct Node* bgProcessesLL;
+
 
 void redirectionHandler(char* direction, char* file)
 {
@@ -47,6 +50,23 @@ void redirectionHandler(char* direction, char* file)
 	return;
 }
 
+void signal_handler(int sig_num){
+	pid_t pid;
+	while( (pid = waitpid(-1, 0, WNOHANG)) > 0 ){
+		if(search_for_pid(bgProcessesLL, pid) == 0){
+			if(delete_from_list(&bgProcessesLL, pid) == 0){
+//				write(1, "successfully removed from BGLL\n", 31);
+			}
+			else {
+//				write(1, "pid not found in BGLL\n", 22);
+			}
+		}
+		else {
+//			write(1, "not found in bg\n", 16);
+		}
+	}
+}
+
 
 int main(int argc, char* argv[])
 {
@@ -55,6 +75,11 @@ int main(int argc, char* argv[])
 	signal(SIGTERM, SIG_IGN);
 	signal(SIGINT, SIG_IGN);
 	signal(SIGTSTP, SIG_IGN);
+
+	bgProcessesLL = (struct Node*)malloc(sizeof(struct Node));
+	bgProcessesLL = NULL;
+
+	signal(SIGCHLD, signal_handler);
 
 	/* Save original STDOUT, STDIN so we can restore it if/when changed */
 	// TODO, do this w/o using dup()....
@@ -67,9 +92,6 @@ int main(int argc, char* argv[])
 	// dup2(STDIN_FILENO, original_in);
 	// printf("%d\n", original_out);
 	// printf("%d\n", original_in);
-
-	struct Node* bgProcessesLL = (struct Node*)malloc(sizeof(struct Node));
-	bgProcessesLL = NULL;
 
 
 	/* shell's loop.*/
@@ -102,7 +124,6 @@ int main(int argc, char* argv[])
 				if(i == length - 2){
 					write(1, "background registered\n", sizeof("background registered\n"));
 					fsync(1);
-					// printf("background\n");
 					background = true;
 					input[length - 2] = '\0';
 				}
@@ -149,7 +170,6 @@ int main(int argc, char* argv[])
 					signal(SIGTSTP, SIG_DFL);
 
 					if(background){
-						printf("%d\n", getpid());
 						setpgid(0, getpid());
 					}
 					dup2(pipefd[1], STDOUT_FILENO);	/*redirect stdout to pipe*/
@@ -158,9 +178,9 @@ int main(int argc, char* argv[])
 					execvp(cmd[0], cmd); /*execute first command */
 				}
 				else {
+
 					if(background) {
 						pipeGrp = pid;
-						printf("%d\n", pipeGrp);
 					}
 					// wait(NULL);
 					close(pipefd[1]); /*reader will see EOF */
@@ -224,7 +244,6 @@ int main(int argc, char* argv[])
 				signal(SIGTTOU, SIG_DFL);
 
 				if (pipeBool){
-					printf("%d\n", pipeGrp);
 					if ( setpgid(0, pipeGrp) != 0){
 						perror("setpgid");
 						exit(EXIT_FAILURE);
