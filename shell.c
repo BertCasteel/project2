@@ -76,8 +76,8 @@ void signal_handler(int sig_num){
 int main(int argc, char* argv[])
 {
 	shell_terminal = STDIN_FILENO;
-
-	setpgid(0, getpid());
+	pid_t shell_pid = getpid();
+	setpgid(0, shell_pid);
 	tcsetpgrp(shell_terminal, getpid());
 
 	signal(SIGTERM, SIG_IGN);
@@ -178,7 +178,7 @@ int main(int argc, char* argv[])
 					setpgid(0, getpid());
 
 					if(background){
-						tcsetpgrp(shell_terminal, getppid());
+					//	tcsetpgrp(shell_terminal, getppid());
 					}else{
 						tcsetpgrp(shell_terminal, getpid());
 					}
@@ -192,11 +192,11 @@ int main(int argc, char* argv[])
 					cmd[j] = NULL;     
 					execvp(cmd[0], cmd); /*execute first command */
 				}
-				else {
+				else { /*parent process*/
 					setpgid(kidpid, kidpid);
 
 					if(background){
-						tcsetpgrp(shell_terminal, getpid());
+					//	tcsetpgrp(shell_terminal, getpid());
 					}else{
 						tcsetpgrp(shell_terminal, kidpid);
 					}
@@ -260,7 +260,7 @@ int main(int argc, char* argv[])
 			/* change group process id in child process to ensure execvp runs after the change */
 			if (background){
 				/* give terminal control to shell */
-				tcsetpgrp(shell_terminal, getppid());
+//				tcsetpgrp(shell_terminal, getppid());
 
 				signal(SIGTTIN, SIG_DFL);
 				signal(SIGTTOU, SIG_DFL);
@@ -280,6 +280,9 @@ int main(int argc, char* argv[])
 				exit(EXIT_FAILURE);
 			}
 
+			if ( !background ){
+				tcsetpgrp(shell_terminal, child_id);
+			}
 
 			if( pipeBool){
 				dup2(pipefd[0], STDIN_FILENO);
@@ -297,33 +300,40 @@ int main(int argc, char* argv[])
 		}
 		else { /* parent process */
 			signal(SIGTTIN, SIG_IGN);
+			
+			pid_t foreground = -1;
+			
+			if ( pipeBool ){
+				if( setpgid(kidpid, pipeGrp) != 0){		
+					printf("here boo\n");
+					perror("setpgid");
+					exit(EXIT_FAILURE);
+				}
+				foreground = pipeGrp;
 
-			if ( pipeBool && setpgid(kidpid, pipeGrp) != 0){
-				printf("here boo\n");
-				perror("setpgid");
-				exit(EXIT_FAILURE);
-
-			}else if ( setpgid(kidpid, kidpid) != 0){
-				printf("here boo\n");
-				perror("setpgid");
-				exit(EXIT_FAILURE);
+			} else { 
+				if ( setpgid(kidpid, kidpid) != 0){
+					printf("here boo\n");
+					perror("setpgid");
+					exit(EXIT_FAILURE);
+				}
+				foreground = kidpid;
 			}
 	
-			/* terminal control retained by shell */
-			tcsetpgrp(shell_terminal, getpid());
-
 
 			if(background){
 				/* add it to linked list */
 				bgProcessesLL = add_to_end(bgProcessesLL, kidpid);
 			}
 			else{
+				tcsetpgrp(shell_terminal, foreground);
 				int status;
 				waitpid(kidpid, &status, 0);
-				tcsetpgrp(shell_terminal, getpid());
 			}
 		}
 
+		/* terminal control retained by shell */
+		tcsetpgrp(shell_terminal, shell_pid);
 		/* Revert to original settings */
 		/* clear out pipe */
 		if (pipeBool == true){
