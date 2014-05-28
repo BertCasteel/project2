@@ -38,6 +38,11 @@ int shell_terminal;
 struct Node* bgProcessesLL;
 
 
+void catch_sigtstp(int signum){
+	printf("caught sigtstp\n");
+}
+
+
 void redirectionHandler(char* direction, char* file)
 {
 	if( direction[0] == '>' ){
