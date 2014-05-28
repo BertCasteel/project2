@@ -19,6 +19,7 @@ In this assignment, you will implement a more fully-featured shell.
 
 
 ###Extra Cedit:
+    Disadvantages of synchronous job control:
 
 
 ###Compilation Instructions:
