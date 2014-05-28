@@ -50,21 +50,16 @@ void redirectionHandler(char* direction, char* file)
 void signal_handler(int sig_num){
 	pid_t pid;
 	while( (pid = waitpid(-1, 0, WNOHANG)) > 0 ){
-		//sleep(15);
-		print_list(bgProcessesLL);
 		if(search_for_pid(bgProcessesLL, pid) == 0){
 			if(delete_from_list(&bgProcessesLL, pid) == 0){
-				write(1, "successfully removed from BGLL\n", 31);
-				print_list(bgProcessesLL);
+//				write(1, "successfully removed from BGLL\n", 31);
 			}
 			else {
-				write(1, "pid not found in BGLL\n", 22);
-				print_list(bgProcessesLL);
+//				write(1, "pid not found in BGLL\n", 22);
 			}
 		}
 		else {
-			write(1, "not found in bg\n", 16);
-			print_list(bgProcessesLL);
+//			write(1, "not found in bg\n", 16);
 		}
 	}
 }
@@ -119,7 +114,6 @@ int main(int argc, char* argv[])
 				if(i == length - 2){
 					write(1, "background registered\n", sizeof("background registered\n"));
 					fsync(1);
-					// printf("background\n");
 					background = true;
 					input[length - 2] = '\0';
 				}
@@ -159,7 +153,6 @@ int main(int argc, char* argv[])
 				}
 				else if( pid == 0){/*child process writes to pipe*/
 					if(background){
-						printf("%d\n", getpid());
 						setpgid(0, getpid());
 					}
 					dup2(pipefd[1], STDOUT_FILENO);	/*redirect stdout to pipe*/
@@ -168,9 +161,9 @@ int main(int argc, char* argv[])
 					execvp(cmd[0], cmd); /*execute first command */
 				}
 				else {
+
 					if(background) {
 						pipeGrp = pid;
-						printf("%d\n", pipeGrp);
 					}
 					// wait(NULL);
 					close(pipefd[1]); /*reader will see EOF */
@@ -221,7 +214,6 @@ int main(int argc, char* argv[])
 			/* change group process id in child process to ensure execvp runs after the change */
 			if (background){
 				if (pipeBool){
-					printf("%d\n", pipeGrp);
 					if ( setpgid(0, pipeGrp) != 0){
 						perror("setpgid");
 						exit(EXIT_FAILURE);
@@ -234,19 +226,16 @@ int main(int argc, char* argv[])
 			if( pipeBool){
 				dup2(pipefd[0], STDIN_FILENO);
 			}
-			// write(2, cmd[0], sizeof(cmd[0]));
 			execvp(cmd[0], cmd);
 		}
 		else { /* parent process */
 			if(background){
 				/* add it to linked list */
 				bgProcessesLL = add_to_end(bgProcessesLL, pid);
-				print_list(bgProcessesLL);
 			}
 			else{
 				int status;
 				waitpid(pid, &status, 0);
-				printf("Terminated fg %d\n", pid );
 			}
 		}
 
