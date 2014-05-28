@@ -28,6 +28,7 @@ char errCreatingChild[] = "Error occured creating child process\n";
 char input[bufSize]; /*buffer for command*/
 pid_t kidpid = -1; /*global process id for command process. */
 TOKENIZER *tokenizer;
+pid_t shell_pid;
 
 /* Temp solution - TODO arbitrary length? */
 char* cmd[MAX_NUM_ARGS];
@@ -57,7 +58,17 @@ void redirectionHandler(char* direction, char* file)
 
 void signal_handler(int sig_num){
 	pid_t pid;
-	while( (pid = waitpid(-1, 0, WNOHANG)) > 0 ){
+	int status;
+	while( (pid = waitpid(-1, &status, WNOHANG | WUNTRACED)) > 0 ){
+
+		/* handle stops */
+		if (WIFSTOPPED(status)){
+			printf("process %d stopped\n", pid);
+			tcsetpgrp(shell_terminal, shell_pid);
+			return; 
+		}
+		
+
 		if(search_for_pid(bgProcessesLL, pid) == 0){
 			if(delete_from_list(&bgProcessesLL, pid) == 0){
 //				write(1, "successfully removed from BGLL\n", 31);
@@ -76,13 +87,9 @@ void signal_handler(int sig_num){
 int main(int argc, char* argv[])
 {
 	shell_terminal = STDIN_FILENO;
-	pid_t shell_pid = getpid();
+	shell_pid = getpid();
 	setpgid(0, shell_pid);
 	tcsetpgrp(shell_terminal, getpid());
-
-	signal(SIGTERM, SIG_IGN);
-	signal(SIGINT, SIG_IGN);
-	signal(SIGTSTP, SIG_IGN);
 
 	bgProcessesLL = (struct Node*)malloc(sizeof(struct Node));
 	bgProcessesLL = NULL;
@@ -104,6 +111,9 @@ int main(int argc, char* argv[])
 
 	/* shell's loop.*/
 	while(1){
+		signal(SIGTERM, SIG_IGN);
+		signal(SIGINT, SIG_IGN);
+		signal(SIGTSTP, SIG_IGN);
 		int pipefd[2];
 		bool pipeBool = false;
 		pid_t pipeGrp = -1;
@@ -180,12 +190,11 @@ int main(int argc, char* argv[])
 					if(background){
 					//	tcsetpgrp(shell_terminal, getppid());
 					}else{
+						signal(SIGTERM, SIG_DFL);
+						signal(SIGINT, SIG_DFL);
+						signal(SIGTSTP, SIG_DFL);
 						tcsetpgrp(shell_terminal, getpid());
 					}
-
-					signal(SIGTERM, SIG_DFL);
-					signal(SIGINT, SIG_DFL);
-					signal(SIGTSTP, SIG_DFL);
 
 					dup2(pipefd[1], STDOUT_FILENO);	/*redirect stdout to pipe*/
 					close(pipefd[0]);  /*close unused read end */
@@ -198,6 +207,7 @@ int main(int argc, char* argv[])
 					if(background){
 					//	tcsetpgrp(shell_terminal, getpid());
 					}else{
+						signal(SIGTTOU, SIG_IGN);
 						tcsetpgrp(shell_terminal, kidpid);
 					}
 
@@ -249,12 +259,6 @@ int main(int argc, char* argv[])
 		}
 		else if (kidpid == 0) {/*child proccess*/	
 
-			signal(SIGTTIN, SIG_IGN);
-			signal(SIGTERM, SIG_DFL);
-			signal(SIGINT, SIG_DFL);
-			signal(SIGTSTP, SIG_DFL);
-			// setpgid(0, getpid());
-
 			pid_t child_id = getpid();
 
 			/* change group process id in child process to ensure execvp runs after the change */
@@ -262,8 +266,8 @@ int main(int argc, char* argv[])
 				/* give terminal control to shell */
 //				tcsetpgrp(shell_terminal, getppid());
 
-				signal(SIGTTIN, SIG_DFL);
-				signal(SIGTTOU, SIG_DFL);
+//				signal(SIGTTIN, SIG_DFL);
+//				signal(SIGTTOU, SIG_DFL);
 
 				if (pipeBool){
 					child_id = pipeGrp;
@@ -281,6 +285,9 @@ int main(int argc, char* argv[])
 			}
 
 			if ( !background ){
+				signal(SIGTERM, SIG_DFL);
+				signal(SIGINT, SIG_DFL);
+				signal(SIGTSTP, SIG_DFL);
 				tcsetpgrp(shell_terminal, child_id);
 			}
 
@@ -299,7 +306,7 @@ int main(int argc, char* argv[])
 			exit(errno);
 		}
 		else { /* parent process */
-			signal(SIGTTIN, SIG_IGN);
+//			signal(SIGTTIN, SIG_IGN);
 			
 			pid_t foreground = -1;
 			
@@ -326,9 +333,10 @@ int main(int argc, char* argv[])
 				bgProcessesLL = add_to_end(bgProcessesLL, kidpid);
 			}
 			else{
+				signal(SIGTTOU, SIG_IGN);
 				tcsetpgrp(shell_terminal, foreground);
 				int status;
-				waitpid(kidpid, &status, 0);
+				waitpid(kidpid, &status, WUNTRACED);
 			}
 		}
 
