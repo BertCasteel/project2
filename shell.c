@@ -26,7 +26,7 @@ char prompt[] = "GALACTUS# ";
 char errCreatingChild[] = "Error occured creating child process\n";
 
 char input[bufSize]; /*buffer for command*/
-pid_t pid = -1; /*global process id for command process. */
+pid_t kidpid = -1; /*global process id for command process. */
 TOKENIZER *tokenizer;
 
 /* Temp solution - TODO arbitrary length? */
@@ -76,6 +76,9 @@ void signal_handler(int sig_num){
 int main(int argc, char* argv[])
 {
 	shell_terminal = STDIN_FILENO;
+
+	setpgid(0, getpid());
+	tcsetpgrp(shell_terminal, getpid());
 
 	signal(SIGTERM, SIG_IGN);
 	signal(SIGINT, SIG_IGN);
@@ -163,30 +166,42 @@ int main(int argc, char* argv[])
 					
 				pipeBool = true;
 				/*create child process*/
-				pid = fork();
-				if(pid < 0) { /*error occured*/
+				kidpid = fork();
+
+
+				if(kidpid < 0) { /*error occured*/
 					write(STDOUT_FILENO, errCreatingChild , sizeof(errCreatingChild));
 					fsync(STDOUT_FILENO);	
 					return 1;
 				}
-				else if( pid == 0){/*child process writes to pipe*/
+				else if( kidpid == 0){/*child process writes to pipe*/
+					setpgid(0, getpid());
+
+					if(background){
+						tcsetpgrp(shell_terminal, getppid());
+					}else{
+						tcsetpgrp(shell_terminal, getpid());
+					}
+
 					signal(SIGTERM, SIG_DFL);
 					signal(SIGINT, SIG_DFL);
 					signal(SIGTSTP, SIG_DFL);
 
-					if(background){
-						setpgid(0, getpid());
-					}
 					dup2(pipefd[1], STDOUT_FILENO);	/*redirect stdout to pipe*/
 					close(pipefd[0]);  /*close unused read end */
 					cmd[j] = NULL;     
 					execvp(cmd[0], cmd); /*execute first command */
 				}
 				else {
+					setpgid(kidpid, kidpid);
 
-					if(background) {
-						pipeGrp = pid;
+					if(background){
+						tcsetpgrp(shell_terminal, getpid());
+					}else{
+						tcsetpgrp(shell_terminal, kidpid);
 					}
+
+					pipeGrp = kidpid;
 					// wait(NULL);
 					close(pipefd[1]); /*reader will see EOF */
 
@@ -225,20 +240,22 @@ int main(int argc, char* argv[])
 		if(continue_to_prompt){ continue; }
 
 		/*create child process*/
-		pid = fork();
+		kidpid = fork();
 	
-		if(pid < 0) { /*error occured*/
+		if(kidpid < 0) { /*error occured*/
 			write(STDOUT_FILENO, errCreatingChild , sizeof(errCreatingChild));
 			fsync(STDOUT_FILENO);	
 			return 1;
 		}
-		else if (pid == 0) {/*child proccess*/	
+		else if (kidpid == 0) {/*child proccess*/	
 
 			signal(SIGTTIN, SIG_IGN);
 			signal(SIGTERM, SIG_DFL);
 			signal(SIGINT, SIG_DFL);
 			signal(SIGTSTP, SIG_DFL);
 			// setpgid(0, getpid());
+
+			pid_t child_id = getpid();
 
 			/* change group process id in child process to ensure execvp runs after the change */
 			if (background){
@@ -249,16 +266,21 @@ int main(int argc, char* argv[])
 				signal(SIGTTOU, SIG_DFL);
 
 				if (pipeBool){
-					if ( setpgid(0, pipeGrp) != 0){
-						perror("setpgid");
-						exit(EXIT_FAILURE);
-					}
+					child_id = pipeGrp;
+					// if ( setpgid(0, pipeGrp) != 0){
+					// 	perror("setpgid");
+					// 	exit(EXIT_FAILURE);
+					// }
 				}
-				else {
-					setpgid(0, getpid());
-				}
+			}
 
-			}		 
+
+			if ( setpgid(0, child_id) != 0){
+				perror("setpgid");
+				exit(EXIT_FAILURE);
+			}
+
+
 			if( pipeBool){
 				dup2(pipefd[0], STDIN_FILENO);
 			}
@@ -275,17 +297,30 @@ int main(int argc, char* argv[])
 		}
 		else { /* parent process */
 			signal(SIGTTIN, SIG_IGN);
+
+			if ( pipeBool && setpgid(kidpid, pipeGrp) != 0){
+				printf("here boo\n");
+				perror("setpgid");
+				exit(EXIT_FAILURE);
+
+			}else if ( setpgid(kidpid, kidpid) != 0){
+				printf("here boo\n");
+				perror("setpgid");
+				exit(EXIT_FAILURE);
+			}
 	
 			/* terminal control retained by shell */
 			tcsetpgrp(shell_terminal, getpid());
 
+
 			if(background){
 				/* add it to linked list */
-				bgProcessesLL = add_to_end(bgProcessesLL, pid);
+				bgProcessesLL = add_to_end(bgProcessesLL, kidpid);
 			}
 			else{
 				int status;
-				waitpid(pid, &status, 0);
+				waitpid(kidpid, &status, 0);
+				tcsetpgrp(shell_terminal, getpid());
 			}
 		}
 
