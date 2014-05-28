@@ -15,7 +15,7 @@ struct Node
 } Node;
 
 
-struct Node* add_to_end(struct Node* head, int data){
+struct Node* add_to_end(struct Node* head, pid_t data){
 
     // Node* newNode = new Node(data);
     struct Node* newNode = (struct Node *)malloc(sizeof(struct Node));
@@ -40,7 +40,7 @@ struct Node* add_to_end(struct Node* head, int data){
     return head;
 }
 
-int delete_from_list(struct Node** head, int data){
+int delete_from_list(struct Node** head, pid_t data){
     /*
     Iterates through list and removes first occurance of _data_
     */
