@@ -5,6 +5,7 @@ Spring 2014, University of Oregon
 Project 2
 **/
 
+#include <errno.h>
 #include <signal.h>
 #include <unistd.h>
 #include <fcntl.h>
@@ -31,6 +32,8 @@ TOKENIZER *tokenizer;
 /* Temp solution - TODO arbitrary length? */
 char* cmd[MAX_NUM_ARGS];
 
+int shell_terminal;
+
 
 void redirectionHandler(char* direction, char* file)
 {
@@ -47,6 +50,12 @@ void redirectionHandler(char* direction, char* file)
 
 int main(int argc, char* argv[])
 {
+	shell_terminal = STDIN_FILENO;
+
+	signal(SIGTERM, SIG_IGN);
+	signal(SIGINT, SIG_IGN);
+	signal(SIGTSTP, SIG_IGN);
+
 	/* Save original STDOUT, STDIN so we can restore it if/when changed */
 	// TODO, do this w/o using dup()....
 	int original_out = dup(STDOUT_FILENO);
@@ -61,7 +70,7 @@ int main(int argc, char* argv[])
 
 	struct Node* bgProcessesLL = (struct Node*)malloc(sizeof(struct Node));
 	bgProcessesLL = NULL;
-	
+
 
 	/* shell's loop.*/
 	while(1){
@@ -84,6 +93,8 @@ int main(int argc, char* argv[])
 		input[length-1] = '\0'; /* remove trailing \n*/
 		//newargv[0] = input;
 		bool continue_to_prompt = false; /* Means of abandoning this input cmd and reissuing prompt (if true) */
+
+
 		/* Background Handler */		
 		int i;
 		for (i = 0; i < length; i++){
@@ -113,6 +124,9 @@ int main(int argc, char* argv[])
 			//printf("Got token %s", token);
 			//printf(" size:%d\n", strlen(token)); 	
 
+			/* HOW TO QUIT OUR SHELL */
+			if(token[0] == 'q' && j==0){ exit(0); }
+
 			/* PIPE HANDLER */
 			if(token[0] == '|'){
 				
@@ -130,6 +144,10 @@ int main(int argc, char* argv[])
 					return 1;
 				}
 				else if( pid == 0){/*child process writes to pipe*/
+					signal(SIGTERM, SIG_DFL);
+					signal(SIGINT, SIG_DFL);
+					signal(SIGTSTP, SIG_DFL);
+
 					if(background){
 						printf("%d\n", getpid());
 						setpgid(0, getpid());
@@ -190,8 +208,21 @@ int main(int argc, char* argv[])
 			return 1;
 		}
 		else if (pid == 0) {/*child proccess*/	
+
+			signal(SIGTTIN, SIG_IGN);
+			signal(SIGTERM, SIG_DFL);
+			signal(SIGINT, SIG_DFL);
+			signal(SIGTSTP, SIG_DFL);
+			// setpgid(0, getpid());
+
 			/* change group process id in child process to ensure execvp runs after the change */
 			if (background){
+				/* give terminal control to shell */
+				tcsetpgrp(shell_terminal, getppid());
+
+				signal(SIGTTIN, SIG_DFL);
+				signal(SIGTTOU, SIG_DFL);
+
 				if (pipeBool){
 					printf("%d\n", pipeGrp);
 					if ( setpgid(0, pipeGrp) != 0){
@@ -202,17 +233,31 @@ int main(int argc, char* argv[])
 				else {
 					setpgid(0, getpid());
 				}
+
 			}		 
 			if( pipeBool){
 				dup2(pipefd[0], STDIN_FILENO);
 			}
+
 			// write(2, cmd[0], sizeof(cmd[0]));
 			execvp(cmd[0], cmd);
+
+			/* Gets here only if execvp has failed */
+			write(STDOUT_FILENO, cmd[0], sizeof(cmd[0]));
+			write(STDOUT_FILENO, ": command not found\n", sizeof(": command not found\n"));
+			fsync(STDOUT_FILENO);	
+			/* Exits child process */
+			exit(errno);
 		}
 		else { /* parent process */
+			signal(SIGTTIN, SIG_IGN);
+	
+			/* terminal control retained by shell */
+			tcsetpgrp(shell_terminal, getpid());
+
 			if(background){
 				/* add it to linked list */
-				add_to_end(bgProcessesLL, pid);
+				bgProcessesLL = add_to_end(bgProcessesLL, pid);
 			}
 			else{
 				int status;
