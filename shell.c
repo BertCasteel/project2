@@ -12,12 +12,14 @@ Project 2
 #include <sys/wait.h>
 #include <sys/types.h>
 #include "tokenizer.h"
-#include "linked_list.h"
+#include "grouplist.h"
 
 #define STDOUT 1
 #define STDIN 0
 #define bufSize 1024
 #define MAX_NUM_ARGS (50)
+#define STOP 1
+#define RESUME 0
 
 typedef enum { false, true } bool;
 
@@ -36,7 +38,7 @@ char* cmd[MAX_NUM_ARGS];
 int shell_terminal;
 
 /* Global linked list of background processes */
-struct Node* bgProcessesLL;
+struct GroupNode* bgProcessesLL;
 
 
 void catch_sigtstp(int signum){
@@ -56,7 +58,7 @@ void redirectionHandler(char* direction, char* file)
 	return;
 }
 
-void signal_handler(int sig_num){
+void sigchld_handler(int sig_num){
 	pid_t pid;
 	int status;
 	while( (pid = waitpid(-1, &status, WNOHANG | WUNTRACED)) > 0 ){
@@ -64,22 +66,23 @@ void signal_handler(int sig_num){
 		/* handle stops */
 		if (WIFSTOPPED(status)){
 			printf("process %d stopped\n", pid);
+			if(stop_group(bgProcessesLL, getpgid(pid)) == 0){
+				pid_t groupid = getpgid(pid);
+				bgProcessesLL = add_new_process(&bgProcessesLL, groupid, pid, STOP);
+			}
+			else {
+				print_grouplist(bgProcessesLL);
+			}
 			tcsetpgrp(shell_terminal, shell_pid);
 			return; 
 		}
-		
-
-		if(search_for_pid(bgProcessesLL, pid) == 0){
-			if(delete_from_list(&bgProcessesLL, pid) == 0){
-//				write(1, "successfully removed from BGLL\n", 31);
-			}
-			else {
-//				write(1, "pid not found in BGLL\n", 22);
-			}
+		printf("....removing process\n");
+		print_grouplist(bgProcessesLL);
+		int pgid;
+		if (remove_process(&bgProcessesLL, pid, &pgid) == -1){
+			printf("cannot find bg process...");
 		}
-		else {
-//			write(1, "not found in bg\n", 16);
-		}
+		printf("RETURNNNN");
 	}
 }
 
@@ -91,10 +94,11 @@ int main(int argc, char* argv[])
 	setpgid(0, shell_pid);
 	tcsetpgrp(shell_terminal, getpid());
 
-	bgProcessesLL = (struct Node*)malloc(sizeof(struct Node));
-	bgProcessesLL = NULL;
+	bgProcessesLL = (struct GroupNode*)malloc(sizeof(struct GroupNode));
+	bgProcessesLL->pgid = -1;
+	//bgProcessesLL = NULL;
 
-	signal(SIGCHLD, signal_handler);
+	signal(SIGCHLD, sigchld_handler);
 
 	/* Save original STDOUT, STDIN so we can restore it if/when changed */
 	// TODO, do this w/o using dup()....
@@ -188,7 +192,7 @@ int main(int argc, char* argv[])
 					setpgid(0, getpid());
 
 					if(background){
-					//	tcsetpgrp(shell_terminal, getppid());
+						/**/
 					}else{
 						signal(SIGTERM, SIG_DFL);
 						signal(SIGINT, SIG_DFL);
@@ -205,6 +209,8 @@ int main(int argc, char* argv[])
 					setpgid(kidpid, kidpid);
 
 					if(background){
+						add_new_process(&bgProcessesLL, kidpid, kidpid, RESUME);
+
 					//	tcsetpgrp(shell_terminal, getpid());
 					}else{
 						signal(SIGTTOU, SIG_IGN);
@@ -330,7 +336,9 @@ int main(int argc, char* argv[])
 
 			if(background){
 				/* add it to linked list */
-				bgProcessesLL = add_to_end(bgProcessesLL, kidpid);
+				//print_grouplist(bgProcessesLL);
+				bgProcessesLL = add_new_process(&bgProcessesLL, getpgid(kidpid), kidpid, RESUME);
+				//print_grouplist(bgProcessesLL);
 			}
 			else{
 				signal(SIGTTOU, SIG_IGN);
@@ -349,9 +357,11 @@ int main(int argc, char* argv[])
 			close(pipefd[1]);
 			pipeBool = false;
 		}
+		fsync(STDOUT);
 		background = false;
 		pipeGrp = -1;
 		free_tokenizer( tokenizer );
+
 
 	} //end shell loop
 	return 0;

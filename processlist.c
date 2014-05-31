@@ -9,6 +9,13 @@
 
 
 struct ProcessNode* add_to_beginning(struct ProcessNode* head, pid_t pid, int stop){
+    if(head->pid == -1){
+        printf("starting processlist \n");
+        head->pid = pid;
+        head->next = NULL;
+        head->stopped = stop;
+        return head;
+    }
 
     // ProcessNode* newProcessNode = new ProcessNode(pid);
     struct ProcessNode* newProcessNode = (struct ProcessNode *)malloc(sizeof(struct ProcessNode));

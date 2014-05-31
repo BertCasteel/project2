@@ -19,49 +19,39 @@ struct GroupNode* create_new_group(pid_t pgid){
     }
     newGroupNode->pgid = pgid;
     newGroupNode->next = NULL;
-    newGroupNode->processHead = NULL;
-
+    newGroupNode->processHead = (struct ProcessNode *)malloc(sizeof(struct ProcessNode));
+    newGroupNode->processHead->pid = -1;
     return newGroupNode;
 }
 
 
 struct GroupNode* add_new_process(struct GroupNode** start, pid_t pgid, pid_t pid, int stop){
-    struct GroupNode* head;
-    if (start == NULL){
-        head = create_new_group(pgid);
+    assert(start != NULL);
+    if ((*start)->pgid == -1){
+        printf("empty start!\n");
+        (*start)->pgid = pgid;
+        (*start)->next = NULL;
+        (*start)->processHead = (struct ProcessNode *)malloc(sizeof(struct ProcessNode));
+        (*start)->processHead->pid = -1;
+        /*head->pgid = pgid;
+        head->next = NULL;
+        head->processHead = (struct ProcessNode *)malloc(sizeof(struct ProcessNode));*/
     }
-    else{
-        head = *start;
-    }
+    struct GroupNode* head = *start;
 
     while( head->next != NULL && head->pgid != pgid){
         head = head->next;
     }
 
     if (head->next == NULL && head->pgid != pgid){
+        /* end of list */
         head = create_new_group(pgid);
         head->next = *start;
-        *start = head->next;
     }
 
     head->processHead = add_to_beginning(head->processHead, pid, stop);
     return head;
 }
-
-int remove_process(struct GroupNode** head, pid_t pid, int * pgid){
-    
-    if(*head == NULL){
-        return -1;
-    }
-
-    int returnValue = remove_process_recur(*head, pid, pgid);
-    if (returnValue == EMPTY_PROCESS_GROUP){
-        return remove_group(head, *pgid);
-    }
-    else
-        return returnValue;
-}
-
 
 int remove_process_recur(struct GroupNode* head, pid_t pid, int * pgid){
     if(head == NULL){
@@ -79,10 +69,36 @@ int remove_process_recur(struct GroupNode* head, pid_t pid, int * pgid){
     return remove_process_recur(head->next, pid, pgid); 
 }
 
+int remove_process(struct GroupNode** head, pid_t pid, int * pgid){
+    
+    if(*head == NULL){
+        return -1;
+    }
+
+    int returnValue = remove_process_recur(*head, pid, pgid);
+    if (returnValue == EMPTY_PROCESS_GROUP){
+        printf("removing grouppppp\n");
+        return remove_group(head, *pgid);
+    }
+    else
+        return returnValue;
+}
+
 int remove_group(struct GroupNode** head, pid_t pgid){
     /*
     Iterates through list and removes first occurance of _pgid_
     */
+
+    printf("========================");
+
+    assert(head != NULL);
+    if((*head)->next == NULL){
+        (*head)->pgid = -1;
+        printf("only one group..");
+        fsync(1);
+        delete_all_processes((*head)->processHead);
+        return 0;
+    }
     struct GroupNode * prev;
     struct GroupNode * curr = *head;
 
@@ -136,12 +152,12 @@ int resume_group(struct GroupNode* head, pid_t pgid){
 void print_grouplist(struct GroupNode* head){
     struct GroupNode* curr = head;
     write(STDOUT, "----PRINTING GROUPLIST----\n", 27);
-    while(curr != NULL){
+    //while(curr != NULL){
         printf("pgid: %d", curr->pgid);
         print_processlist(curr->processHead);
         // write(STDOUT, &(curr->pgid), sizeof(curr->pgid));
         curr=curr->next;
-    }
+    //}
     write(STDOUT, "---------------------\n", 22);
 }
 /*
