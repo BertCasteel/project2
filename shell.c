@@ -12,12 +12,15 @@ Project 2
 #include <sys/wait.h>
 #include <sys/types.h>
 #include "tokenizer.h"
-#include "linked_list.h"
+#include "grouplist.h"
+#include <assert.h>
 
 #define STDOUT 1
 #define STDIN 0
 #define bufSize 1024
 #define MAX_NUM_ARGS (50)
+#define STOP 1
+#define RESUME 0
 
 typedef enum { false, true } bool;
 
@@ -28,8 +31,9 @@ char bg[] = "bg";
 char fg[] = "fg";
 
 char input[bufSize]; /*buffer for command*/
-pid_t pid = -1; /*global process id for command process. */
+pid_t kidpid = -1; /*global process id for command process. */
 TOKENIZER *tokenizer;
+pid_t shell_pid;
 
 /* Temp solution - TODO arbitrary length? */
 char* cmd[MAX_NUM_ARGS];
@@ -37,18 +41,14 @@ char* cmd[MAX_NUM_ARGS];
 int shell_terminal;
 
 /* Global linked list of background processes */
-struct Node* bgProcessesLL;
+struct GroupNode* bgProcessesLL;
 
 
-void catch_sigtstp(int signum){
-	printf("caught sigtstp\n");
-}
 
 bool stringCompare(char* a, char* b)
 {
 	int i=0;
 	while(a[i]!='\0' && b[i]!='\0'){
-		printf("comparing %c and %c.\n",a[i], b[i] );
 		if (a[i] != b[i]){ return false; }
 		i++;
 	}
@@ -66,13 +66,30 @@ void backgroundForegroundCommands(char command[])
 
 	if(stringCompare(command,bg)==true){
 		printf("%s\n", "you entered command bg! nice job dude!" );
+		printf("here are the bg processes\n");
+		print_grouplist(bgProcessesLL);
 		/* Deliver SIGCONT signal to the most recently stopped background job */
+
+
 	}
 	else if(stringCompare(command,fg)==true){
 		printf("%s\n", "you entered command fg! nice job dude!" );
 		/* Bring the most recently backgrounded job to the foreground */
-
+		if(tcsetpgrp(shell_terminal, bgProcessesLL->pgid)<0)
 		/* Deliver SIGCONT signal in case that job is stopped */
+		killpg(bgProcessesLL->pgid, SIGCONT);
+		/* wait for it */
+		int status;
+		waitpid(bgProcessesLL->pgid, &status, 0);
+		/* Remove it from the list of bg processes */
+		killpg(shell_pid, SIGCONT);
+		remove_group(&bgProcessesLL, bgProcessesLL->pgid);
+		printf("did we get here?\n");
+		if (tcsetpgrp(shell_terminal, shell_pid) <0){
+
+			printf("bummer %d\n", errno);
+		}
+		printf("almost done...\n");
 	}
 	return;
 }
@@ -89,19 +106,32 @@ void redirectionHandler(char* direction, char* file)
 	return;
 }
 
-void signal_handler(int sig_num){
+void sigchld_handler(int sig_num){
 	pid_t pid;
-	while( (pid = waitpid(-1, 0, WNOHANG)) > 0 ){
-		if(search_for_pid(bgProcessesLL, pid) == 0){
-			if(delete_from_list(&bgProcessesLL, pid) == 0){
-//				write(1, "successfully removed from BGLL\n", 31);
+	int status;
+	while( (pid = waitpid(-1, &status, WNOHANG | WUNTRACED)) > 0 ){
+
+		/* handle stops */
+		if (WIFSTOPPED(status)){
+			printf("process %d stopped\n", pid);
+			if(stop_group(bgProcessesLL, getpgid(pid)) == 0){
+				pid_t groupid = getpgid(pid);
+				bgProcessesLL = add_new_process(&bgProcessesLL, groupid, pid, STOP);
+				printf("returned from adding new process\n");
 			}
 			else {
-//				write(1, "pid not found in BGLL\n", 22);
+				print_grouplist(bgProcessesLL);
 			}
+			tcsetpgrp(shell_terminal, shell_pid);
+			printf("about to return from handler\n");
+			// printf("tc belongs to %d\n", tcgetpgrp(shell_pid));
+			return; 
 		}
-		else {
-//			write(1, "not found in bg\n", 16);
+		printf("....removing process\n");
+		print_grouplist(bgProcessesLL);
+		int pgid;
+		if (remove_process(&bgProcessesLL, pid, &pgid) == -1){
+			printf("cannot find bg process...\n");
 		}
 	}
 }
@@ -125,15 +155,16 @@ int main(int argc, char* argv[])
 
 
 	shell_terminal = STDIN_FILENO;
+	shell_pid = getpid();
+	setpgid(0, shell_pid);
+	tcsetpgrp(shell_terminal, getpid());
 
-	signal(SIGTERM, SIG_IGN);
-	signal(SIGINT, SIG_IGN);
+	bgProcessesLL = (struct GroupNode*)malloc(sizeof(struct GroupNode));
+	bgProcessesLL->pgid = -1;
+	//bgProcessesLL = NULL;
+
+	signal(SIGCHLD, sigchld_handler);
 	signal(SIGTSTP, SIG_IGN);
-
-	bgProcessesLL = (struct Node*)malloc(sizeof(struct Node));
-	bgProcessesLL = NULL;
-
-	signal(SIGCHLD, signal_handler);
 
 	/* Save original STDOUT, STDIN so we can restore it if/when changed */
 	// TODO, do this w/o using dup()....
@@ -150,6 +181,9 @@ int main(int argc, char* argv[])
 
 	/* shell's loop.*/
 	while(1){
+		signal(SIGTERM, SIG_IGN);
+		signal(SIGINT, SIG_IGN);
+		signal(SIGTSTP, SIG_IGN);
 		int pipefd[2];
 		bool pipeBool = false;
 		pid_t pipeGrp = -1;
@@ -200,7 +234,7 @@ int main(int argc, char* argv[])
 			//printf(" size:%d\n", strlen(token)); 	
 
 			/* HOW TO QUIT OUR SHELL */
-			if(stringCompare(token,"q")==true && j==0){ exit(0); }
+			if( j==0 && stringCompare(token,"q")==true){ exit(0); }
 
 			/* CUSTOM BUILT-IN COMMANDS */
 			if( j==0 && (stringCompare(token,bg)==true || stringCompare(token,fg)==true) ){ 
@@ -218,30 +252,44 @@ int main(int argc, char* argv[])
 					
 				pipeBool = true;
 				/*create child process*/
-				pid = fork();
-				if(pid < 0) { /*error occured*/
+				kidpid = fork();
+
+
+				if(kidpid < 0) { /*error occured*/
 					write(STDOUT_FILENO, errCreatingChild , sizeof(errCreatingChild));
 					fsync(STDOUT_FILENO);	
 					return 1;
 				}
-				else if( pid == 0){/*child process writes to pipe*/
-					signal(SIGTERM, SIG_DFL);
-					signal(SIGINT, SIG_DFL);
-					signal(SIGTSTP, SIG_DFL);
+				else if( kidpid == 0){/*child process writes to pipe*/
+					setpgid(0, getpid());
 
 					if(background){
-						setpgid(0, getpid());
+						/**/
+					}else{
+						signal(SIGTERM, SIG_DFL);
+						signal(SIGINT, SIG_DFL);
+						signal(SIGTSTP, SIG_DFL);
+						tcsetpgrp(shell_terminal, getpid());
 					}
+
 					dup2(pipefd[1], STDOUT_FILENO);	/*redirect stdout to pipe*/
 					close(pipefd[0]);  /*close unused read end */
 					cmd[j] = NULL;     
 					execvp(cmd[0], cmd); /*execute first command */
 				}
-				else {
+				else { /*parent process*/
+					setpgid(kidpid, kidpid);
 
-					if(background) {
-						pipeGrp = pid;
+					if(background){
+						add_new_process(&bgProcessesLL, kidpid, kidpid, RESUME);
+
+					//	tcsetpgrp(shell_terminal, getpid());
+					}else{
+						signal(SIGTTOU, SIG_IGN);
+						tcsetpgrp(shell_terminal, kidpid);
 					}
+
+					pipeGrp = kidpid;
 					// wait(NULL);
 					close(pipefd[1]); /*reader will see EOF */
 
@@ -282,40 +330,47 @@ int main(int argc, char* argv[])
 		/* -------------- READY TO ISSUE COMMAND ------------- */
 		
 		/*create child process*/
-		pid = fork();
+		kidpid = fork();
 	
-		if(pid < 0) { /*error occured*/
+		if(kidpid < 0) { /*error occured*/
 			write(STDOUT_FILENO, errCreatingChild , sizeof(errCreatingChild));
 			fsync(STDOUT_FILENO);	
 			return 1;
 		}
-		else if (pid == 0) {/*child proccess*/	
+		else if (kidpid == 0) {/*child proccess*/	
 
-			signal(SIGTTIN, SIG_IGN);
-			signal(SIGTERM, SIG_DFL);
-			signal(SIGINT, SIG_DFL);
-			signal(SIGTSTP, SIG_DFL);
-			// setpgid(0, getpid());
+			pid_t child_id = getpid();
 
 			/* change group process id in child process to ensure execvp runs after the change */
 			if (background){
 				/* give terminal control to shell */
-				tcsetpgrp(shell_terminal, getppid());
+//				tcsetpgrp(shell_terminal, getppid());
 
 				signal(SIGTTIN, SIG_DFL);
 				signal(SIGTTOU, SIG_DFL);
 
 				if (pipeBool){
-					if ( setpgid(0, pipeGrp) != 0){
-						perror("setpgid");
-						exit(EXIT_FAILURE);
-					}
+					child_id = pipeGrp;
+					// if ( setpgid(0, pipeGrp) != 0){
+					// 	perror("setpgid");
+					// 	exit(EXIT_FAILURE);
+					// }
 				}
-				else {
-					setpgid(0, getpid());
-				}
+			}
 
-			}		 
+
+			if ( setpgid(0, child_id) != 0){
+				perror("setpgid");
+				exit(EXIT_FAILURE);
+			}
+
+			if ( !background ){
+				signal(SIGTERM, SIG_DFL);
+				signal(SIGINT, SIG_DFL);
+				signal(SIGTSTP, SIG_DFL);
+				tcsetpgrp(shell_terminal, child_id);
+			}
+
 			if( pipeBool){
 				dup2(pipefd[0], STDIN_FILENO);
 			}
@@ -331,21 +386,42 @@ int main(int argc, char* argv[])
 			exit(errno);
 		}
 		else { /* parent process */
-			signal(SIGTTIN, SIG_IGN);
+//			signal(SIGTTIN, SIG_IGN);
+			
+			pid_t foreground = -1;
+			
+			if ( pipeBool ){
+				if( setpgid(kidpid, pipeGrp) != 0){		
+					perror("setpgid");
+					exit(EXIT_FAILURE);
+				}
+				foreground = pipeGrp;
+
+			} else { 
+				if ( setpgid(kidpid, kidpid) != 0){
+					perror("setpgid");
+					exit(EXIT_FAILURE);
+				}
+				foreground = kidpid;
+			}
 	
-			/* terminal control retained by shell */
-			tcsetpgrp(shell_terminal, getpid());
 
 			if(background){
 				/* add it to linked list */
-				bgProcessesLL = add_to_end(bgProcessesLL, pid);
+				//print_grouplist(bgProcessesLL);
+				bgProcessesLL = add_new_process(&bgProcessesLL, getpgid(kidpid), kidpid, RESUME);
+				//print_grouplist(bgProcessesLL);
 			}
 			else{
+				signal(SIGTTOU, SIG_IGN);
+				tcsetpgrp(shell_terminal, foreground);
 				int status;
-				waitpid(pid, &status, 0);
+				waitpid(kidpid, &status, WUNTRACED);
 			}
 		}
 
+		/* terminal control retained by shell */
+		tcsetpgrp(shell_terminal, shell_pid);
 		/* Revert to original settings */
 		/* clear out pipe */
 		if (pipeBool == true){
