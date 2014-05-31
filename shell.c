@@ -456,8 +456,19 @@ int main(int argc, char* argv[])
 				tcsetpgrp(shell_terminal, foreground);
 				int status;
 				waitpid(kidpid, &status, WUNTRACED);
+				/* handle stops */
+				if (WIFSTOPPED(status)){
+					printf("foreground process %d stopped\n", kidpid);
+					if(stop_group(bgProcessesLL, getpgid(kidpid)) == 0){
+						pid_t groupid = getpgid(kidpid);
+						bgProcessesLL = add_new_process(&bgProcessesLL, groupid, kidpid, STOP);
+					}	
+					else {
+						print_grouplist(bgProcessesLL);
+					}
+				}
 			}
-		}
+		}//end parent
 
 		/* terminal control retained by shell */
 		tcsetpgrp(shell_terminal, shell_pid);
