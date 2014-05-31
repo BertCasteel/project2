@@ -25,10 +25,8 @@ Project 2
 typedef enum { false, true } bool;
 
 
-char prompt[] = "GALACTUS# ";
+char prompt[] = "kinda-sh> ";
 char errCreatingChild[] = "Error occured creating child process\n";
-char bg[] = "bg"; 
-char fg[] = "fg";
 
 char input[bufSize]; /*buffer for command*/
 pid_t kidpid = -1; /*global process id for command process. */
@@ -42,7 +40,6 @@ int shell_terminal;
 
 /* Global linked list of background processes */
 struct GroupNode* bgProcessesLL;
-
 
 
 bool stringCompare(char* a, char* b)
@@ -64,42 +61,26 @@ void backgroundForegroundCommands(char command[], int job)
 {
 	/* If no most recent job in bg, then report an error */
 
-	if(stringCompare(command,bg)==true){
-		printf("%s\n", "you entered command bg! nice job dude!" );
-		printf("here are the bg processes\n");
-		print_grouplist(bgProcessesLL);
+	if(stringCompare(command,"bg")==true){
 		/* Deliver SIGCONT signal to the most recently stopped background job */
 		int recent;
-		if(job == -1){
-			recent = get_most_recent_stopped(bgProcessesLL);
-		}
-		else{
-			recent = get_groupid(bgProcessesLL, job);
-		}	
-		printf("removing %d from list:\n", recent);
-		print_grouplist(bgProcessesLL);
+		if(job == -1){ recent = get_most_recent_stopped(bgProcessesLL); }
+		else {         recent = get_groupid(bgProcessesLL, job);  }
 		
 		killpg(recent, SIGCONT);
 		resume_group(bgProcessesLL, recent);
 
-		printf("%d has been removed from list:\n", recent);
-		print_grouplist(bgProcessesLL);
-
-
 	}
-	else if(stringCompare(command,fg)==true){
-		printf("%s\n", "you entered command fg! nice job dude!" );
-		/* Bring the most recently backgrounded job to the foreground */
+	else if(stringCompare(command,"fg")==true){
 		signal(SIGTSTP, SIG_DFL);
 		signal(SIGTERM, SIG_DFL);
+
+		/* Bring the most recently backgrounded job to the foreground */
 		pid_t pgid = -1;
-		if(job == -1){
-			pgid = bgProcessesLL->pgid;
-		}
-		else{
-			pgid = get_groupid(bgProcessesLL, job);
-		}
-		if(tcsetpgrp(shell_terminal, pgid)<0)
+		if(job == -1){ pgid = bgProcessesLL->pgid; }
+		else {         pgid = get_groupid(bgProcessesLL, job); }
+		tcsetpgrp(shell_terminal, pgid);
+
 		/* Deliver SIGCONT signal in case that job is stopped */
 		killpg(bgProcessesLL->pgid, SIGCONT);
 		/* wait for it */
@@ -108,14 +89,10 @@ void backgroundForegroundCommands(char command[], int job)
 		/* Remove it from the list of bg processes */
 		killpg(shell_pid, SIGCONT);
 		remove_group(&bgProcessesLL, bgProcessesLL->pgid);
-		printf("did we get here?\n");
-		if (tcsetpgrp(shell_terminal, shell_pid) <0){
 
-			printf("bummer %d\n", errno);
-		}
-		signal(SIGTSTP, SIG_IGN);
+		/* Return terminal control to shell */
+		tcsetpgrp(shell_terminal, shell_pid);
 		signal(SIGTERM, SIG_IGN);
-		printf("almost done...\n");
 	}
 	return;
 }
@@ -139,24 +116,21 @@ void sigchld_handler(int sig_num){
 
 		/* handle stops */
 		if (WIFSTOPPED(status)){
-			printf("process %d stopped\n", pid);
+			// printf("process %d stopped\n", pid);
 			if(stop_group(bgProcessesLL, getpgid(pid)) == 0){
 				pid_t groupid = getpgid(pid);
 				bgProcessesLL = add_new_process(&bgProcessesLL, groupid, pid, STOP);
-				printf("returned from adding new process\n");
 			}
 			else {
-				print_grouplist(bgProcessesLL);
+				// print_grouplist(bgProcessesLL);
 			}
 			tcsetpgrp(shell_terminal, shell_pid);
-			printf("about to return from handler\n");
 			return; 
 		}
-		printf("....removing process\n");
-		print_grouplist(bgProcessesLL);
+		// print_grouplist(bgProcessesLL);
 		int pgid;
 		if (remove_process(&bgProcessesLL, pid, &pgid) == -1){
-			printf("cannot find bg process...\n");
+			// printf("cannot find bg process...\n");
 		}
 	}
 }
@@ -164,21 +138,7 @@ void sigchld_handler(int sig_num){
 
 int main(int argc, char* argv[])
 {
-	// char abc[]   = "abc";
-	// char abc2[]   = "abc";
-	// char abcd[]  = "awecd";
-	// char abcde[] = "abcde";
-
-	// if(stringCompare(abc, abcd)==true){printf("%s==%s\n",abc, abcd);}
-	// else{printf("%s!=%s\n",abc, abcd);}
-	
-	// if(stringCompare(abcde, abcd)==true){printf("%s==%s\n",abcde, abcd);}
-	// else{printf("%s!=%s\n",abcde, abcd);}
-	
-	// if(stringCompare(abc, abc2)==true){printf("%s==%s\n",abc, abc2);}
-	// else{printf("%s!=%s\n",abc, abc2);}
-
-
+	/* ---- INITIAL SETUP FOR SHELL ----- */
 	shell_terminal = STDIN_FILENO;
 	shell_pid = getpid();
 	setpgid(0, shell_pid);
@@ -186,29 +146,24 @@ int main(int argc, char* argv[])
 
 	bgProcessesLL = (struct GroupNode*)malloc(sizeof(struct GroupNode));
 	bgProcessesLL->pgid = -1;
-	//bgProcessesLL = NULL;
 
 	signal(SIGCHLD, sigchld_handler);
 	signal(SIGTSTP, SIG_IGN);
 
 	/* Save original STDOUT, STDIN so we can restore it if/when changed */
-	// TODO, do this w/o using dup()....
 	int original_out = dup(STDOUT_FILENO);
 	int original_in  = dup(STDIN_FILENO);
 
-	// int original_out;
-	// int original_in;
-	// dup2(STDOUT_FILENO, original_out);
-	// dup2(STDIN_FILENO, original_in);
-	// printf("%d\n", original_out);
-	// printf("%d\n", original_in);
+	printf("Enter command 'q' to exit shell.\n");
 
 
-	/* shell's loop.*/
+	/*  ----------- SHELL'S LOOP ------------- */
 	while(1){
+		/* ---- INITIAL SETUP FOR NEW PROMPT ------------ */
 		signal(SIGTERM, SIG_IGN);
 		signal(SIGINT, SIG_IGN);
 		signal(SIGTSTP, SIG_IGN);
+		/* declare variables */
 		int pipefd[2];
 		bool pipeBool = false;
 		pid_t pipeGrp = -1;
@@ -216,21 +171,19 @@ int main(int argc, char* argv[])
 		/* Restore STDOUT,STDIN to original file descriptor */
 		dup2(original_out, STDOUT_FILENO);
 		dup2(original_in, STDIN_FILENO);
-
 		/* Clear cmd[] */
 		int clear;
 		for(clear = 0; clear < MAX_NUM_ARGS; clear++) { cmd[clear] = NULL; }
 
-		/* Issue prompt, read in */
+		/* ----- ISSUE PROMPT, READ IN FROM COMMAND LINE ------ */
 		write(STDOUT_FILENO, (void *) prompt, sizeof(prompt));
 		fsync(STDOUT_FILENO);	
 		int length = read(STDIN_FILENO, input, bufSize);	
 		input[length-1] = '\0'; /* remove trailing \n*/
-		//newargv[0] = input;
 		bool continue_to_prompt = false; /* Means of abandoning this input cmd and reissuing prompt (if true) */
 
 
-		/* Background Handler */		
+		/* ------ CHECK FOR APPROPRIATE BACKGROUND USAGE ------ */	
 		int i;
 		for (i = 0; i < length; i++){
 			if (input[i] == '&'){
@@ -249,20 +202,21 @@ int main(int argc, char* argv[])
 		}
 		
 
-		/* tokenize command */
+		/* ---- TOKENIZE USER INPUT ------------------------ */
 		tokenizer = init_tokenizer( input );
 		char* token;
 		int j=0; /* Index of current cmd arg */
-		
-		while ( (token = get_next_token( tokenizer )) != NULL && j<MAX_NUM_ARGS ){
-			//printf("Got token %s", token);
-			//printf(" size:%d\n", strlen(token)); 	
 
+		/* ----- ITERATE THROUGH TOKENS --------------------- */
+		while ( (token = get_next_token( tokenizer )) != NULL && j<MAX_NUM_ARGS ){	
+
+
+			/* ---------------- CUSTOM COMMANDS ------------------------ */
 			/* HOW TO QUIT OUR SHELL */
 			if( j==0 && stringCompare(token,"q")==true){ exit(0); }
 
-			/* CUSTOM BUILT-IN COMMANDS */
-			if( j==0 && (stringCompare(token,bg)==true || stringCompare(token,fg)==true) ){ 
+			/* CUSTOM BUILT-IN COMMANDS FG & BG */
+			if( j==0 && (stringCompare(token,"bg")==true || stringCompare(token,"fg")==true) ){ 
 				char* nextCmd = get_next_token( tokenizer);
 				int job = -1;
 				if(nextCmd != NULL && nextCmd[0] == '%'){
@@ -272,13 +226,14 @@ int main(int argc, char* argv[])
 				backgroundForegroundCommands(token, job); 
 				continue_to_prompt = true;
 			}
-
 			/* CUSTOM COMMAND 'JOBS' TO PRINT OUT LIST OF BACKGROUND PROCESS JOBS*/
 			if( j==0 && stringCompare(token, "jobs") == true){
 				print_grouplist(bgProcessesLL);
 				continue_to_prompt = true;
 			}
 
+
+			/* ---------------- DELINIATOR HANDLING ------------------------ */
 			/* PIPE HANDLER */
 			if(token[0] == '|'){
 				
@@ -291,7 +246,6 @@ int main(int argc, char* argv[])
 				/*create child process*/
 				kidpid = fork();
 
-
 				if(kidpid < 0) { /*error occured*/
 					write(STDOUT_FILENO, errCreatingChild , sizeof(errCreatingChild));
 					fsync(STDOUT_FILENO);	
@@ -300,9 +254,7 @@ int main(int argc, char* argv[])
 				else if( kidpid == 0){/*child process writes to pipe*/
 					setpgid(0, getpid());
 
-					if(background){
-						/**/
-					}else{
+					if(!background){
 						signal(SIGTERM, SIG_DFL);
 						signal(SIGINT, SIG_DFL);
 						signal(SIGTSTP, SIG_DFL);
@@ -310,9 +262,9 @@ int main(int argc, char* argv[])
 					}
 
 					dup2(pipefd[1], STDOUT_FILENO);	/*redirect stdout to pipe*/
-					close(pipefd[0]);  /*close unused read end */
-					cmd[j] = NULL;     
-					execvp(cmd[0], cmd); /*execute first command */
+					close(pipefd[0]);				/*close unused read end */
+					cmd[j] = NULL;     				/*NULL terminator*/
+					execvp(cmd[0], cmd); 			/*execute first command */
 				}
 				else { /*parent process*/
 					setpgid(kidpid, kidpid);
@@ -320,14 +272,11 @@ int main(int argc, char* argv[])
 					if(background){
 						bgProcessesLL = add_new_process(&bgProcessesLL, kidpid, kidpid, RESUME);
 
-					//	tcsetpgrp(shell_terminal, getpid());
 					}else{
 						signal(SIGTTOU, SIG_IGN);
 						tcsetpgrp(shell_terminal, kidpid);
 					}
-
 					pipeGrp = kidpid;
-					// wait(NULL);
 					close(pipefd[1]); /*reader will see EOF */
 
 					/*clear cmd array. limit scope of index k */
@@ -364,7 +313,8 @@ int main(int argc, char* argv[])
 		/* Check if we should reissue prompt */
 		if(continue_to_prompt){ continue; }
 
-		/* -------------- READY TO ISSUE COMMAND ------------- */
+
+		/* ------------------ READY TO ISSUE COMMAND ------------------ */
 		
 		/*create child process*/
 		kidpid = fork();
@@ -380,21 +330,13 @@ int main(int argc, char* argv[])
 
 			/* change group process id in child process to ensure execvp runs after the change */
 			if (background){
-				/* give terminal control to shell */
-//				tcsetpgrp(shell_terminal, getppid());
-
 				signal(SIGTTIN, SIG_DFL);
 				signal(SIGTTOU, SIG_DFL);
 
 				if (pipeBool){
 					child_id = pipeGrp;
-					// if ( setpgid(0, pipeGrp) != 0){
-					// 	perror("setpgid");
-					// 	exit(EXIT_FAILURE);
-					// }
 				}
 			}
-
 
 			if ( setpgid(0, child_id) != 0){
 				perror("setpgid");
@@ -412,7 +354,6 @@ int main(int argc, char* argv[])
 				dup2(pipefd[0], STDIN_FILENO);
 			}
 
-			// write(2, cmd[0], sizeof(cmd[0]));
 			execvp(cmd[0], cmd);
 
 			/* Gets here only if execvp has failed */
@@ -423,7 +364,6 @@ int main(int argc, char* argv[])
 			exit(errno);
 		}
 		else { /* parent process */
-//			signal(SIGTTIN, SIG_IGN);
 			signal(SIGTSTP, SIG_IGN);
 			signal(SIGSTOP, SIG_IGN);
 			
@@ -447,9 +387,7 @@ int main(int argc, char* argv[])
 
 			if(background){
 				/* add it to linked list */
-				//print_grouplist(bgProcessesLL);
 				bgProcessesLL = add_new_process(&bgProcessesLL, getpgid(kidpid), kidpid, RESUME);
-				//print_grouplist(bgProcessesLL);
 			}
 			else{
 				signal(SIGTTOU, SIG_IGN);
@@ -458,7 +396,7 @@ int main(int argc, char* argv[])
 				waitpid(kidpid, &status, WUNTRACED);
 				/* handle stops */
 				if (WIFSTOPPED(status)){
-					printf("foreground process %d stopped\n", kidpid);
+					// printf("foreground process %d stopped\n", kidpid);
 					if(stop_group(bgProcessesLL, getpgid(kidpid)) == 0){
 						pid_t groupid = getpgid(kidpid);
 						bgProcessesLL = add_new_process(&bgProcessesLL, groupid, kidpid, STOP);
