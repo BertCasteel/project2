@@ -60,7 +60,7 @@ bool stringCompare(char* a, char* b)
 	return false;
 }
 
-void backgroundForegroundCommands(char command[])
+void backgroundForegroundCommands(char command[], int job)
 {
 	/* If no most recent job in bg, then report an error */
 
@@ -69,8 +69,13 @@ void backgroundForegroundCommands(char command[])
 		printf("here are the bg processes\n");
 		print_grouplist(bgProcessesLL);
 		/* Deliver SIGCONT signal to the most recently stopped background job */
-		int recent = get_most_recent_stopped(bgProcessesLL);
-		
+		int recent;
+		if(job == -1){
+			recent = get_most_recent_stopped(bgProcessesLL);
+		}
+		else{
+			recent = get_groupid(bgProcessesLL, job);
+		}	
 		printf("removing %d from list:\n", recent);
 		print_grouplist(bgProcessesLL);
 		
@@ -85,7 +90,16 @@ void backgroundForegroundCommands(char command[])
 	else if(stringCompare(command,fg)==true){
 		printf("%s\n", "you entered command fg! nice job dude!" );
 		/* Bring the most recently backgrounded job to the foreground */
-		if(tcsetpgrp(shell_terminal, bgProcessesLL->pgid)<0)
+		signal(SIGTSTP, SIG_DFL);
+		signal(SIGTERM, SIG_DFL);
+		pid_t pgid = -1;
+		if(job == -1){
+			pgid = bgProcessesLL->pgid;
+		}
+		else{
+			pgid = get_groupid(bgProcessesLL, job);
+		}
+		if(tcsetpgrp(shell_terminal, pgid)<0)
 		/* Deliver SIGCONT signal in case that job is stopped */
 		killpg(bgProcessesLL->pgid, SIGCONT);
 		/* wait for it */
@@ -99,6 +113,8 @@ void backgroundForegroundCommands(char command[])
 
 			printf("bummer %d\n", errno);
 		}
+		signal(SIGTSTP, SIG_IGN);
+		signal(SIGTERM, SIG_IGN);
 		printf("almost done...\n");
 	}
 	return;
@@ -247,7 +263,19 @@ int main(int argc, char* argv[])
 
 			/* CUSTOM BUILT-IN COMMANDS */
 			if( j==0 && (stringCompare(token,bg)==true || stringCompare(token,fg)==true) ){ 
-				backgroundForegroundCommands(token); 
+				char* nextCmd = get_next_token( tokenizer);
+				int job = -1;
+				if(nextCmd != NULL && nextCmd[0] == '%'){
+					job = nextCmd[1] - '0';
+					printf("job: %d\n", job);
+				}
+				backgroundForegroundCommands(token, job); 
+				continue_to_prompt = true;
+			}
+
+			/* CUSTOM COMMAND 'JOBS' TO PRINT OUT LIST OF BACKGROUND PROCESS JOBS*/
+			if( j==0 && stringCompare(token, "jobs") == true){
+				print_grouplist(bgProcessesLL);
 				continue_to_prompt = true;
 			}
 

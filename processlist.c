@@ -103,17 +103,12 @@ void resume_processlist(struct ProcessNode* head){
 
 void print_processlist(struct ProcessNode* head){
     struct ProcessNode* curr = head;
-    printf("    Processes:  ");
+    printf("   Processes: ");
     while(curr != NULL){
-        if(curr->stopped){
-            printf("%d(s)->", curr->pid);
-        }
-        else{
-            printf("%d-> ", curr->pid);
-        }
+	printf("%d", curr->pid);
+	if(curr->next != NULL) printf(" | ");
         curr=curr->next;
     }
-    printf("\n");
 }
 /*
 int main(){

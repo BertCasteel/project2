@@ -21,6 +21,7 @@ struct GroupNode* create_new_group(pid_t pgid){
     newGroupNode->next = NULL;
     newGroupNode->processHead = (struct ProcessNode *)malloc(sizeof(struct ProcessNode));
     newGroupNode->processHead->pid = -1;
+    newGroupNode->stop = 0;
     return newGroupNode;
 }
 
@@ -31,6 +32,7 @@ struct GroupNode* add_new_process(struct GroupNode** start, pid_t pgid, pid_t pi
         printf("empty start!\n");
         (*start)->pgid = pgid;
         (*start)->next = NULL;
+	(*start)->stop = 0;
         (*start)->processHead = (struct ProcessNode *)malloc(sizeof(struct ProcessNode));
         (*start)->processHead->pid = -1;
         /*head->pgid = pgid;
@@ -128,6 +130,7 @@ int stop_group(struct GroupNode* head, pid_t pgid){
     }
 
     if(head->pgid == pgid){
+	head->stop = 1;
         stop_processlist(head->processHead);
         return 1;
     }
@@ -141,6 +144,7 @@ int resume_group(struct GroupNode* head, pid_t pgid){
     }
 
     if(head->pgid == pgid){
+	head->stop = 0;
         resume_processlist(head->processHead);
         return 1;
     }
@@ -160,14 +164,32 @@ int get_most_recent_stopped(struct GroupNode* head){
     return -1;
 }
 
+int get_groupid(struct GroupNode* head, int position){
+	int i = 1;
+	for (i = 1; i < position; i++){
+		if (head == NULL){
+			return -1;
+		}
+		head=head->next;
+	}
+	return head->pgid;
+}
+
+
 void print_grouplist(struct GroupNode* head){
     struct GroupNode* curr = head;
     write(STDOUT, "----PRINTING GROUPLIST----\n", 27);
-    while(curr != NULL){
-        printf("pgid: %d", curr->pgid);
+	int stackNumber = 1;   
+ while(curr != NULL && curr->pgid != -1){
+        printf("[%d] pgid: %d:", stackNumber, curr->pgid);
         print_processlist(curr->processHead);
+	if(curr->stop == 1){
+		printf(" (stopped)\n");
+	}
+	else printf(" (running)\n");
         // write(STDOUT, &(curr->pgid), sizeof(curr->pgid));
         curr=curr->next;
+	stackNumber++;
     }
     write(STDOUT, "---------------------\n", 22);
 }
