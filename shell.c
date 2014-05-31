@@ -63,7 +63,7 @@ bool stringCompare(char* a, char* b)
 void backgroundForegroundCommands(char command[])
 {
 	/* If no most recent job in bg, then report an error */
-	
+
 	if(stringCompare(command,bg)==true){
 		printf("%s\n", "you entered command bg! nice job dude!" );
 		/* Deliver SIGCONT signal to the most recently stopped background job */
@@ -275,10 +275,12 @@ int main(int argc, char* argv[])
 				j++;
 			}
 		}//end tokenizer
-		
+
 		/* Check if we should reissue prompt */
 		if(continue_to_prompt){ continue; }
 
+		/* -------------- READY TO ISSUE COMMAND ------------- */
+		
 		/*create child process*/
 		pid = fork();
 	
@@ -356,7 +358,6 @@ int main(int argc, char* argv[])
 		free_tokenizer( tokenizer );
 		
 		fsync(STDOUT_FILENO);	
-
 	} //end shell loop
 	return 0;
 }
