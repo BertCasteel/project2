@@ -14,6 +14,7 @@ struct GroupNode
 {
     pid_t pgid;
     int foreground;
+    int stop;
     struct GroupNode * next;
     struct ProcessNode * processHead;
 } GroupNode;
@@ -33,6 +34,8 @@ int stop_group(struct GroupNode* head, pid_t pgid);
 int resume_group(struct GroupNode* head, pid_t pgid);
 
 int get_most_recent_stopped(struct GroupNode* head);
+
+int get_groupid(struct GroupNode* head, int position);
 
 void print_grouplist(struct GroupNode* head);
 
