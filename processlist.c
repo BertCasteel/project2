@@ -8,6 +8,9 @@
 #define STDIN 0
 
 
+/**
+push new process onto stack
+**/
 struct ProcessNode* add_to_beginning(struct ProcessNode* head, pid_t pid, int stop){
     if(head->pid == -1){
         printf("starting processlist \n");
@@ -31,6 +34,9 @@ struct ProcessNode* add_to_beginning(struct ProcessNode* head, pid_t pid, int st
     return newProcessNode;
 }
 
+/**
+return 0 if not found
+**/
 int search_for_pid(struct ProcessNode* head, pid_t pid){
     if(head == NULL){
         return 0;
@@ -42,6 +48,10 @@ int search_for_pid(struct ProcessNode* head, pid_t pid){
 
 }
 
+/**
+return 1 if deleted succesfully
+return 0 if not found
+**/
 int delete_from_processlist(struct ProcessNode** head, pid_t pid){
     /*
     Iterates through list and removes first occurance of _pid_
@@ -68,7 +78,9 @@ int delete_from_processlist(struct ProcessNode** head, pid_t pid){
     return 0;
 }
 
-
+/**
+delete every process
+**/
 int delete_all_processes(struct ProcessNode* head){
 	struct ProcessNode * next;
 
@@ -85,6 +97,9 @@ int delete_all_processes(struct ProcessNode* head){
 
 }
 
+/**
+mark process as stopped
+**/
 void stop_processlist(struct ProcessNode* head){
     if(head == NULL){
         return;
@@ -93,6 +108,9 @@ void stop_processlist(struct ProcessNode* head){
     return stop_processlist(head->next);
 }
 
+/**
+turn off stop boolean
+**/
 void resume_processlist(struct ProcessNode* head){
     if(head == NULL){
         return;
@@ -101,6 +119,9 @@ void resume_processlist(struct ProcessNode* head){
     return resume_processlist(head->next);
 }
 
+/**
+print entire process list
+**/
 void print_processlist(struct ProcessNode* head){
     struct ProcessNode* curr = head;
     printf("   Processes: ");
@@ -110,35 +131,4 @@ void print_processlist(struct ProcessNode* head){
         curr=curr->next;
     }
 }
-/*
-int main(){
-     struct ProcessNode* head = (struct ProcessNode*)malloc(sizeof(struct ProcessNode));
-     head = NULL;
-     int i;
-     for (i = 0; i < 10; ++i)
-     {
-         // printf("trying to add %d\n", i);
-         head = add_to_beginning(head, i, 0);
-     }
-     print_processlist(head);
 
-//     delete_from_list(&head, 4);
-
-//     delete_from_list(&head, 7);
-     printf("%d\n", search_for_pid(head, 8));
-//     print_list(head);
-
-     delete_all_processes(head);
-//     delete_from_list(&head, 7);
-
-//     print_list(head);
-
-//     for (int i = 0; i < 11; ++i)
-//     {
-//         // printf("trying to add %d\n", i);
-//         delete_from_list(&head, i);
-//         print_list(head);
-//     }
-
-     return 0;
-}*/

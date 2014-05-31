@@ -12,7 +12,7 @@ Project 2
 #include <sys/wait.h>
 #include <sys/types.h>
 #include "tokenizer.h"
-#include "grouplist.h"
+#include "groupstack.h"
 #include <assert.h>
 
 #define STDOUT 1
@@ -69,7 +69,6 @@ void backgroundForegroundCommands(char command[], int job)
 		
 		killpg(recent, SIGCONT);
 		resume_group(bgProcessesLL, recent);
-
 	}
 	else if(stringCompare(command,"fg")==true){
 		signal(SIGTSTP, SIG_DFL);
@@ -228,7 +227,7 @@ int main(int argc, char* argv[])
 			}
 			/* CUSTOM COMMAND 'JOBS' TO PRINT OUT LIST OF BACKGROUND PROCESS JOBS*/
 			if( j==0 && stringCompare(token, "jobs") == true){
-				print_grouplist(bgProcessesLL);
+				print_groupstack(bgProcessesLL);
 				continue_to_prompt = true;
 			}
 
@@ -402,7 +401,7 @@ int main(int argc, char* argv[])
 						bgProcessesLL = add_new_process(&bgProcessesLL, groupid, kidpid, STOP);
 					}	
 					else {
-						print_grouplist(bgProcessesLL);
+						print_groupstack(bgProcessesLL);
 					}
 				}
 			}
