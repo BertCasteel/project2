@@ -19,7 +19,7 @@ struct GroupNode
     struct ProcessNode * processHead;
 } GroupNode;
 
-struct GroupNode* create_new_group(pid_t pgid);
+struct GroupNode* create_new_group(pid_t pgid, int stop);
 
 struct GroupNode* add_new_process(struct GroupNode** start, pid_t pgid, pid_t pid, int stop);
 

@@ -10,7 +10,7 @@
 #define STDIN 0
 #define EMPTY_PROCESS_GROUP 0
 
-struct GroupNode* create_new_group(pid_t pgid){
+struct GroupNode* create_new_group(pid_t pgid, int stop){
     struct GroupNode* newGroupNode = (struct GroupNode *)malloc(sizeof(struct GroupNode));
 
     if(newGroupNode == NULL){ 
@@ -19,6 +19,7 @@ struct GroupNode* create_new_group(pid_t pgid){
     }
     newGroupNode->pgid = pgid;
     newGroupNode->next = NULL;
+	newGroupNode->stop = stop;
     newGroupNode->processHead = (struct ProcessNode *)malloc(sizeof(struct ProcessNode));
     newGroupNode->processHead->pid = -1;
     newGroupNode->stop = 0;
@@ -32,7 +33,7 @@ struct GroupNode* add_new_process(struct GroupNode** start, pid_t pgid, pid_t pi
         printf("empty start!\n");
         (*start)->pgid = pgid;
         (*start)->next = NULL;
-	(*start)->stop = 0;
+	(*start)->stop = 1;
         (*start)->processHead = (struct ProcessNode *)malloc(sizeof(struct ProcessNode));
         (*start)->processHead->pid = -1;
         /*head->pgid = pgid;
@@ -47,7 +48,7 @@ struct GroupNode* add_new_process(struct GroupNode** start, pid_t pgid, pid_t pi
 
     if (head->next == NULL && head->pgid != pgid){
         /* end of list */
-        head = create_new_group(pgid);
+        head = create_new_group(pgid, stop);
         head->next = *start;
     }
 
