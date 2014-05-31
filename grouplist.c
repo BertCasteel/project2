@@ -148,6 +148,18 @@ int resume_group(struct GroupNode* head, pid_t pgid){
     return resume_group(head->next, pgid);
 }
 
+int get_most_recent_stopped(struct GroupNode* head){
+    struct GroupNode* curr = head;
+
+    while(curr != NULL){
+        if(curr->processHead->stopped){
+            return curr->pgid;
+        }
+        curr=curr->next;
+    }
+    return -1;
+}
+
 void print_grouplist(struct GroupNode* head){
     struct GroupNode* curr = head;
     write(STDOUT, "----PRINTING GROUPLIST----\n", 27);

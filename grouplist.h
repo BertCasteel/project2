@@ -32,6 +32,8 @@ int stop_group(struct GroupNode* head, pid_t pgid);
 
 int resume_group(struct GroupNode* head, pid_t pgid);
 
+int get_most_recent_stopped(struct GroupNode* head);
+
 void print_grouplist(struct GroupNode* head);
 
 #endif
