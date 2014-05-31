@@ -24,6 +24,8 @@ typedef enum { false, true } bool;
 
 char prompt[] = "GALACTUS# ";
 char errCreatingChild[] = "Error occured creating child process\n";
+char bg[] = "bg"; 
+char fg[] = "fg";
 
 char input[bufSize]; /*buffer for command*/
 pid_t pid = -1; /*global process id for command process. */
@@ -45,16 +47,34 @@ void catch_sigtstp(int signum){
 bool stringCompare(char* a, char* b)
 {
 	int i=0;
-	while(a[i]!='\0' || b[i]!='\0'){
+	while(a[i]!='\0' && b[i]!='\0'){
+		printf("comparing %c and %c.\n",a[i], b[i] );
 		if (a[i] != b[i]){ return false; }
+		i++;
 	}
-	if(b[i]!='\0'){return false;}
-	return true;
+	if(b[i]=='\0'){
+		if (a[i]=='\0'){
+			return true;
+		}else{return false;}
+	}
+	return false;
 }
 
-void backgroundForegroundCommands()
+void backgroundForegroundCommands(char command[])
 {
+	/* If no most recent job in bg, then report an error */
+	
+	if(stringCompare(command,bg)==true){
+		printf("%s\n", "you entered command bg! nice job dude!" );
+		/* Deliver SIGCONT signal to the most recently stopped background job */
+	}
+	else if(stringCompare(command,fg)==true){
+		printf("%s\n", "you entered command fg! nice job dude!" );
+		/* Bring the most recently backgrounded job to the foreground */
 
+		/* Deliver SIGCONT signal in case that job is stopped */
+	}
+	return;
 }
 
 void redirectionHandler(char* direction, char* file)
@@ -89,6 +109,21 @@ void signal_handler(int sig_num){
 
 int main(int argc, char* argv[])
 {
+	// char abc[]   = "abc";
+	// char abc2[]   = "abc";
+	// char abcd[]  = "awecd";
+	// char abcde[] = "abcde";
+
+	// if(stringCompare(abc, abcd)==true){printf("%s==%s\n",abc, abcd);}
+	// else{printf("%s!=%s\n",abc, abcd);}
+	
+	// if(stringCompare(abcde, abcd)==true){printf("%s==%s\n",abcde, abcd);}
+	// else{printf("%s!=%s\n",abcde, abcd);}
+	
+	// if(stringCompare(abc, abc2)==true){printf("%s==%s\n",abc, abc2);}
+	// else{printf("%s!=%s\n",abc, abc2);}
+
+
 	shell_terminal = STDIN_FILENO;
 
 	signal(SIGTERM, SIG_IGN);
@@ -165,10 +200,13 @@ int main(int argc, char* argv[])
 			//printf(" size:%d\n", strlen(token)); 	
 
 			/* HOW TO QUIT OUR SHELL */
-			if(token[0] == 'q' && j==0){ exit(0); }
+			if(stringCompare(token,"q")==true && j==0){ exit(0); }
 
 			/* CUSTOM BUILT-IN COMMANDS */
-			if( (token[0] == 'bg' || token[0] == 'fg') && j==0){ backgroundForegroundCommands(); }
+			if( j==0 && (stringCompare(token,bg)==true || stringCompare(token,fg)==true) ){ 
+				backgroundForegroundCommands(token); 
+				continue_to_prompt = true;
+			}
 
 			/* PIPE HANDLER */
 			if(token[0] == '|'){
