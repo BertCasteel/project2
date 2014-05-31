@@ -12,7 +12,7 @@ Project 2
 #include <sys/wait.h>
 #include <sys/types.h>
 #include "tokenizer.h"
-#include "grouplist.h"
+#include "groupstack.h"
 #include <assert.h>
 
 #define STDOUT 1
@@ -67,7 +67,7 @@ void backgroundForegroundCommands(char command[], int job)
 	if(stringCompare(command,bg)==true){
 		printf("%s\n", "you entered command bg! nice job dude!" );
 		printf("here are the bg processes\n");
-		print_grouplist(bgProcessesLL);
+		print_groupstack(bgProcessesLL);
 		/* Deliver SIGCONT signal to the most recently stopped background job */
 		int recent;
 		if(job == -1){
@@ -77,13 +77,13 @@ void backgroundForegroundCommands(char command[], int job)
 			recent = get_groupid(bgProcessesLL, job);
 		}	
 		printf("removing %d from list:\n", recent);
-		print_grouplist(bgProcessesLL);
+		print_groupstack(bgProcessesLL);
 		
 		killpg(recent, SIGCONT);
 		resume_group(bgProcessesLL, recent);
 
 		printf("%d has been removed from list:\n", recent);
-		print_grouplist(bgProcessesLL);
+		print_groupstack(bgProcessesLL);
 
 
 	}
@@ -146,14 +146,14 @@ void sigchld_handler(int sig_num){
 				printf("returned from adding new process\n");
 			}
 			else {
-				print_grouplist(bgProcessesLL);
+				print_groupstack(bgProcessesLL);
 			}
 			tcsetpgrp(shell_terminal, shell_pid);
 			printf("about to return from handler\n");
 			return; 
 		}
 		printf("....removing process\n");
-		print_grouplist(bgProcessesLL);
+		print_groupstack(bgProcessesLL);
 		int pgid;
 		if (remove_process(&bgProcessesLL, pid, &pgid) == -1){
 			printf("cannot find bg process...\n");
@@ -275,7 +275,7 @@ int main(int argc, char* argv[])
 
 			/* CUSTOM COMMAND 'JOBS' TO PRINT OUT LIST OF BACKGROUND PROCESS JOBS*/
 			if( j==0 && stringCompare(token, "jobs") == true){
-				print_grouplist(bgProcessesLL);
+				print_groupstack(bgProcessesLL);
 				continue_to_prompt = true;
 			}
 
@@ -447,9 +447,9 @@ int main(int argc, char* argv[])
 
 			if(background){
 				/* add it to linked list */
-				//print_grouplist(bgProcessesLL);
+				//print_groupstack(bgProcessesLL);
 				bgProcessesLL = add_new_process(&bgProcessesLL, getpgid(kidpid), kidpid, RESUME);
-				//print_grouplist(bgProcessesLL);
+				//print_groupstack(bgProcessesLL);
 			}
 			else{
 				signal(SIGTTOU, SIG_IGN);
@@ -464,7 +464,7 @@ int main(int argc, char* argv[])
 						bgProcessesLL = add_new_process(&bgProcessesLL, groupid, kidpid, STOP);
 					}	
 					else {
-						print_grouplist(bgProcessesLL);
+						print_groupstack(bgProcessesLL);
 					}
 				}
 			}
