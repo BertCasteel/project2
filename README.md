@@ -15,7 +15,6 @@ In this assignment, you will implement a more fully-featured shell.
 * shell.c -------- source code for the shell's main functionality
 * tokenizer.c ---- for parsing
 * tokenizer.h ---- header file for tokenizer
-* linked_list.c -- implementation of linked list data structure
 
 
 ###Extra Cedit:
