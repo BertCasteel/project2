@@ -299,6 +299,8 @@ int main(int argc, char* argv[])
 		background = false;
 		pipeGrp = -1;
 		free_tokenizer( tokenizer );
+		
+		fsync(STDOUT_FILENO);	
 
 	} //end shell loop
 	return 0;
