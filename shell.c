@@ -42,6 +42,20 @@ void catch_sigtstp(int signum){
 	printf("caught sigtstp\n");
 }
 
+bool stringCompare(char* a, char* b)
+{
+	int i=0;
+	while(a[i]!='\0' || b[i]!='\0'){
+		if (a[i] != b[i]){ return false; }
+	}
+	if(b[i]!='\0'){return false;}
+	return true;
+}
+
+void backgroundForegroundCommands()
+{
+
+}
 
 void redirectionHandler(char* direction, char* file)
 {
@@ -152,6 +166,9 @@ int main(int argc, char* argv[])
 
 			/* HOW TO QUIT OUR SHELL */
 			if(token[0] == 'q' && j==0){ exit(0); }
+
+			/* CUSTOM BUILT-IN COMMANDS */
+			if( (token[0] == 'bg' || token[0] == 'fg') && j==0){ backgroundForegroundCommands(); }
 
 			/* PIPE HANDLER */
 			if(token[0] == '|'){
