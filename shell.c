@@ -69,6 +69,16 @@ void backgroundForegroundCommands(char command[])
 		printf("here are the bg processes\n");
 		print_grouplist(bgProcessesLL);
 		/* Deliver SIGCONT signal to the most recently stopped background job */
+		int recent = get_most_recent_stopped(bgProcessesLL);
+		
+		printf("removing %d from list:\n", recent);
+		print_grouplist(bgProcessesLL);
+		
+		killpg(recent, SIGCONT);
+		resume_group(bgProcessesLL, recent);
+
+		printf("%d has been removed from list:\n", recent);
+		print_grouplist(bgProcessesLL);
 
 
 	}
@@ -124,7 +134,6 @@ void sigchld_handler(int sig_num){
 			}
 			tcsetpgrp(shell_terminal, shell_pid);
 			printf("about to return from handler\n");
-			// printf("tc belongs to %d\n", tcgetpgrp(shell_pid));
 			return; 
 		}
 		printf("....removing process\n");
@@ -281,7 +290,7 @@ int main(int argc, char* argv[])
 					setpgid(kidpid, kidpid);
 
 					if(background){
-						add_new_process(&bgProcessesLL, kidpid, kidpid, RESUME);
+						bgProcessesLL = add_new_process(&bgProcessesLL, kidpid, kidpid, RESUME);
 
 					//	tcsetpgrp(shell_terminal, getpid());
 					}else{
@@ -387,6 +396,8 @@ int main(int argc, char* argv[])
 		}
 		else { /* parent process */
 //			signal(SIGTTIN, SIG_IGN);
+			signal(SIGTSTP, SIG_IGN);
+			signal(SIGSTOP, SIG_IGN);
 			
 			pid_t foreground = -1;
 			
