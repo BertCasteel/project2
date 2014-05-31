@@ -1,23 +1,24 @@
 project2
 ========
 
+:authors: Kevin Beick and Robert Casteel
+
 CIS 415 - Operating Systems Project #2 - 
 Fully-Featured Shell Spring 2014 - 
 Prof. Butler
-Due date: May 30, 2014 
+Due date: May 30, 2014  *TURNED IN MAY 31, 2014*
+*ONE GRACE DAY USED FOR BOTH OF US*
+
 In this assignment, you will implement a more fully-featured shell.
-
-
-:authors: Kevin Beick and Robert Casteel
 
 :source files:
 * Makefile ------- use to easily compile the project
 * shell.c -------- source code for the shell's main functionality
 * tokenizer.c ---- for parsing
 * tokenizer.h ---- header file for tokenizer
-* grouplist.c ----
-* grouplist.h ---- header file
-* processlist.c --
+* groupstack.c ---- stack of process groups. Each node holds a process list
+* groupstack.h ---- header file
+* processlist.c -- stack of processes
 * processlist.h -- header file
 
 
@@ -35,7 +36,7 @@ In this assignment, you will implement a more fully-featured shell.
         bg or fg is called the next most recent job gets teh SIGCONT signal.  We use our "grouplist" data structure to do this.
 
     (from page 7 of project description) We have a built-in command "jobs" that reports the current background processes.
-        It displays a job id, the pid, and its running/stopped status for each background job. A user can enter 'fg/bg %x' 
+        It displays a job pgid, the pid, and its running/stopped status for each background job. A user can enter 'fg/bg %x' 
         where x is a job number to apply the functionality of fg/bg to the specified job.
 
 
@@ -71,15 +72,36 @@ In this assignment, you will implement a more fully-featured shell.
 
 
 ###Code Description and Layout:
-    Our Data Structure for recording background processes is a linked list (grouplist) in which each node has its own linked list
-    (processlist).  The main linked list is comprised of nodes that represent process groups.  Each of these nodes has the pgid of
-    the group, and a pointer to the linked list of group processes and one to the next group node.
+    Our Data Structure for recording background processes is a stack that holds a list of process group nodes (groupstack).  This list is comprised of nodes that represent process groups/jobs.  Each of these nodes has a pgid and a pointer to the next process group. Each node also contains a pointer to a stack of processes (processlist). Each processlist node contains a pid and a pointer to the next piped process node. 
 
-    h
+    Helper methods:
+        stringCompare- Compare two char arrays
+        backgroundForegroundCommands- Used to process "bg" and "fg" commands
+        redirectionHandler- Used to process ">" and "<" commands
+        sigchld_handler- Handle any SIGCHLD signals. Account for terminated processes as well as stopped background processes. 
 
+    Main:
+        Set up shell
+            -Turn off signals
+            -set up global variables
+        Shell loop
+            -issue prompt and read input
+            -process background ("&")
+            -tokenize input
+            -check for any custom commands (e.g. "fg", "<", "jobs")
+            -check for pipe
+                -set up pipe
+                -fork and execute first process immediately
+                -continue tokenizing
+            -fork and execute command
+                -if we're piping, then this is the second command
+                -piped processes run concurrently
+        Exit loop 
+            -custom command "q"
 
 ###General Comments:
 
+    difficult but fun project!    
 
     time spent:
     ~70 hrs total between the two of us.
