@@ -41,7 +41,9 @@ int shell_terminal;
 /* Global linked list of background processes */
 struct GroupNode* bgProcessesLL;
 
-
+/**
+return true if two arrays are equal
+**/
 bool stringCompare(char* a, char* b)
 {
 	int i=0;
@@ -57,6 +59,11 @@ bool stringCompare(char* a, char* b)
 	return false;
 }
 
+
+/**
+process "bg" or "fg"
+job >= 0 indicates position of job in group stack.
+**/
 void backgroundForegroundCommands(char command[], int job)
 {
 	/* If no most recent job in bg, then report an error */
@@ -64,7 +71,7 @@ void backgroundForegroundCommands(char command[], int job)
 	if(stringCompare(command,"bg")==true){
 		/* Deliver SIGCONT signal to the most recently stopped background job */
 		int recent;
-		if(job == -1){ recent = get_most_recent_stopped(bgProcessesLL); }
+		if(job < 0){ recent = get_most_recent_stopped(bgProcessesLL); }
 		else {         recent = get_groupid(bgProcessesLL, job);  }
 		
 		killpg(recent, SIGCONT);
@@ -76,7 +83,7 @@ void backgroundForegroundCommands(char command[], int job)
 
 		/* Bring the most recently backgrounded job to the foreground */
 		pid_t pgid = -1;
-		if(job == -1){ pgid = bgProcessesLL->pgid; }
+		if(job < 0){ pgid = bgProcessesLL->pgid; }
 		else {         pgid = get_groupid(bgProcessesLL, job); }
 		tcsetpgrp(shell_terminal, pgid);
 
@@ -96,6 +103,9 @@ void backgroundForegroundCommands(char command[], int job)
 	return;
 }
 
+/**
+reassign fd for STDOUT or STDINN
+**/
 void redirectionHandler(char* direction, char* file)
 {
 	if( direction[0] == '>' ){
